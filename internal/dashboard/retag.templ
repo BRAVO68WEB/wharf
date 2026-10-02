@@ -1,0 +1,84 @@
+package dashboard
+
+import (
+	"net/url"
+
+	"github.com/user/better-docker-registry/templates"
+)
+
+// RetagButton is the tag-row retag control (plan task 21): it loads the
+// retag form for exactly one tag into the page's #retag-modal container —
+// one tag per request, no bulk retag. Like the delete button it consumes its
+// own click so the row's hx-get stays out of the way (htmx fires per-element
+// on a bubbled event; the consume modifier needs htmx 1.9.10+/2.x, both
+// versions this dashboard loads).
+templ RetagButton(repoName, tagName, csrfToken string) {
+	<button
+		type="button"
+		class="btn"
+		data-testid="retag-btn"
+		hx-get={ retagURL(repoName, tagName) }
+		hx-target="#retag-modal"
+		hx-swap="innerHTML"
+		hx-trigger="click consume"
+		hx-headers={ templates.CSRFHeaders(csrfToken) }
+	>Retag</button>
+}
+
+// RetagModal is the container the retag form is loaded into — one per page.
+templ RetagModal() {
+	<div id="retag-modal" data-testid="retag-modal"></div>
+}
+
+// RetagForm is the retag form the modal displays for one source tag. It
+// carries both plain form semantics (method/action) and hx-post. The CSRF
+// token rides in hx-headers — middleware.CSRF compares the X-CSRF-Token
+// header only (task 14 contract), so non-HTMX callers post the form the same
+// way every other dashboard mutation is called: with that header set.
+templ RetagForm(data retagFormData) {
+	<form
+		data-testid="retag-form"
+		method="post"
+		action={ retagURL(data.RepoName, data.TagName) }
+		hx-post={ retagURL(data.RepoName, data.TagName) }
+		hx-target="#retag-modal"
+		hx-swap="innerHTML"
+		hx-headers={ templates.CSRFHeaders(data.CSRFToken) }
+	>
+		<h3>Retag { data.RepoName }:{ data.TagName }</h3>
+		<p>
+			Copies the manifest to the new tag name. The original tag is kept.
+		</p>
+		if data.Error != "" {
+			<p class="error" data-testid="retag-error">{ data.Error }</p>
+		}
+		<p>
+			<label for="retag-new-tag">New tag name</label>
+			<input
+				id="retag-new-tag"
+				type="text"
+				name="new_tag"
+				data-testid="retag-new-tag"
+				required
+			/>
+		</p>
+		<p>
+			<label for="retag-target-repo">Target repository</label>
+			<input
+				id="retag-target-repo"
+				type="text"
+				name="target_repo"
+				data-testid="retag-target-repo"
+				value={ data.TargetRepo }
+			/>
+		</p>
+		<button type="submit" class="btn" data-testid="retag-submit">Retag</button>
+	</form>
+}
+
+// retagURL builds the dashboard retag URL of one tag inside a repo.
+// Repository names carry slashes ("library/nginx"), so the name is escaped
+// into a single segment and CollapseRepoName gives it back.
+func retagURL(repoName, tag string) string {
+	return "/dashboard/repos/" + url.PathEscape(repoName) + "/tags/" + url.PathEscape(tag) + "/retag"
+}

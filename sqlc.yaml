@@ -1,0 +1,26 @@
+# sqlc code generation for the registry metadata store.
+#
+#   schema:  canonical DDL (kept in lockstep with internal/db/migrations,
+#            TestSchemaParity fails on drift)
+#   queries: hand-written SQL in internal/db/queries/*.sql
+#   out:     internal/db/*.sql.go + models.go + db.go (generated; never edit)
+#
+# Regenerate with `make sqlc` (or `sqlc generate`).
+
+version: "2"
+sql:
+  - engine: "sqlite"
+    schema: "internal/db/schema.sql"
+    queries: "internal/db/queries"
+    gen:
+      go:
+        package: "db"
+        out: "internal/db"
+        sql_package: "database/sql"
+        emit_interface: true
+        emit_empty_slices: true
+        overrides:
+          # SQLite has no boolean type; map the 0/1 flag to Go bool at the
+          # boundary so callers never see the storage encoding.
+          - column: "users.is_admin"
+            go_type: "bool"

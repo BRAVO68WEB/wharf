@@ -1,0 +1,20 @@
+version: "2"
+
+linters:
+  settings:
+    errcheck:
+      # Best-effort cleanup policy: Close on bodies/files/rows/listeners, temp
+      # spool removal, and env-var seeding in tests are non-actionable on
+      # failure (the resource is already gone or the test fails loudly later).
+      # Every remaining error return is still checked; production writes and
+      # all non-cleanup calls stay covered.
+      exclude-functions:
+        - (io.Closer).Close
+        - (net.Listener).Close
+        - (*os.File).Close
+        - (*database/sql.DB).Close
+        - (*database/sql.Rows).Close
+        - os.Remove
+        - os.RemoveAll
+        - os.Setenv
+        - os.Unsetenv

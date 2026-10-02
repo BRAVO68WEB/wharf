@@ -1,0 +1,73 @@
+package dashboard
+
+import (
+	"net/url"
+)
+
+// TagsPage is the full-page tag list for one repository. csrfToken is the
+// session CSRF token the delete buttons render into their hx-headers.
+templ TagsPage(repoName string, tags []tagDisplay, csrfToken string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>Tags · { repoName }</title>
+			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+		</head>
+		<body>
+			<h1>Tags · { repoName }</h1>
+			@TagsTable(repoName, tags, csrfToken)
+			@RetagModal()
+			<div id="manifest-detail"></div>
+		</body>
+	</html>
+}
+
+// TagsTable is the tag-table fragment HTMX swaps into the page.
+templ TagsTable(repoName string, tags []tagDisplay, csrfToken string) {
+	if len(tags) == 0 {
+		<p data-testid="empty-state">No tags in this repository.</p>
+	} else {
+		<table>
+			<thead>
+				<tr>
+					<th>Tag</th>
+					<th>Manifest Digest</th>
+					<th>Updated</th>
+					<th>Size</th>
+					<th>Actions</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, t := range tags {
+					@TagRow(repoName, t, csrfToken)
+				}
+			</tbody>
+		</table>
+	}
+}
+
+// TagRow is one clickable row: clicking loads the manifest detail into the
+// #manifest-detail container via HTMX. The delete control lives in the row
+// and consumes its own click so the row's hx-get stays out of the way.
+templ TagRow(repoName string, t tagDisplay, csrfToken string) {
+	<tr
+		data-testid="tag-row"
+		hx-get={ manifestDetailURL(repoName, t.ManifestDigest) }
+		hx-target="#manifest-detail"
+		hx-swap="innerHTML"
+		style="cursor:pointer"
+	>
+		<td>{ t.Name }</td>
+		<td><code>{ t.ManifestDigest }</code></td>
+		<td>{ t.UpdatedAt.Format("2006-01-02 15:04:05 MST") }</td>
+		<td>{ FormatBytes(t.Size) }</td>
+		<td>@RetagButton(repoName, t.Name, csrfToken) @DeleteTagButton(repoName, t.Name, csrfToken)</td>
+	</tr>
+}
+
+// manifestDetailURL builds the dashboard URL of one manifest inside a repo.
+func manifestDetailURL(repoName, digest string) string {
+	return "/dashboard/repos/" + url.PathEscape(repoName) + "/manifests/" + url.PathEscape(digest)
+}

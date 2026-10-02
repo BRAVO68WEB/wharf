@@ -1,0 +1,102 @@
+package templates
+
+import "strconv"
+
+// Repository browse panel (plan task 15). RepoPage is the full-page view;
+// RepoResults is the fragment HTMX swaps into #repo-results so the search box
+// keeps its focus and caret while results update underneath it.
+
+// RepoPage is the repository browse panel: filter box plus the results
+// container. The filter's hx-get is the plan's live-search contract
+// (`/dashboard/repos?search=foo` — the `search` parameter comes from the
+// input's name attribute).
+templ RepoPage(data RepoList) {
+	<section class="panel" data-testid="repo-panel">
+		<h1>Repositories</h1>
+		<div class="toolbar">
+			<label for="repo-search" class="visually-hidden">Filter repositories</label>
+			<input
+				id="repo-search"
+				type="search"
+				name="search"
+				value={ data.Search }
+				placeholder="Filter repositories…"
+				autocomplete="off"
+				spellcheck="false"
+				data-testid="repo-search"
+				hx-get="/dashboard/repos"
+				hx-trigger="keyup changed delay:300ms, search"
+				hx-target="#repo-results"
+				hx-swap="innerHTML"
+			/>
+		</div>
+		<div id="repo-results" data-testid="repo-results">
+			@RepoResults(data)
+		</div>
+	</section>
+}
+
+// RepoResults is the swappable fragment: the table (or empty state) and the
+// pager. Keep the search input OUTSIDE this fragment — swapping it would drop
+// focus on every keystroke.
+templ RepoResults(data RepoList) {
+	if len(data.Repos) == 0 {
+		<p class="empty" data-testid="repo-empty">No repositories found.</p>
+	} else {
+		<table class="table" data-testid="repo-table">
+			<thead>
+				<tr>
+					<th scope="col">Name</th>
+					<th scope="col" class="num">Tags</th>
+					<th scope="col" class="num">Manifests</th>
+					<th scope="col">Created</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, repo := range data.Repos {
+					<tr data-testid="repo-row" data-repo={ repo.Name }>
+						<td>
+							<a href={ templ.URL(RepoHref(repo.Name)) } data-testid="repo-link">{ repo.Name }</a>
+						</td>
+						<td class="num">{ strconv.FormatInt(repo.TagCount, 10) }</td>
+						<td class="num">{ strconv.FormatInt(repo.ManifestCount, 10) }</td>
+						<td>{ repo.CreatedAt.UTC().Format("2006-01-02 15:04 UTC") }</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	}
+	@RepoPager(data)
+}
+
+// RepoPager is the page control under the table. Links carry the active
+// filter forward so paging never silently drops the search. It is hidden when
+// there is nothing to page, but stays visible once the operator has moved past
+// page 1 so they can always find their way back.
+templ RepoPager(data RepoList) {
+	if data.TotalPages() > 1 || data.Page > 1 {
+		<nav class="pager" data-testid="repo-pager" aria-label="Repository pages">
+			if data.HasPrev() {
+				<a
+					hx-get={ ResultsHref(data.Search, data.Page-1) }
+					hx-target="#repo-results"
+					hx-swap="innerHTML"
+					data-testid="repo-page-prev"
+				>Previous</a>
+			} else {
+				<span class="disabled" data-testid="repo-page-prev-disabled">Previous</span>
+			}
+			<span data-testid="repo-page-status">Page { strconv.Itoa(data.Page) } of { strconv.Itoa(data.TotalPages()) }</span>
+			if data.HasNext() {
+				<a
+					hx-get={ ResultsHref(data.Search, data.Page+1) }
+					hx-target="#repo-results"
+					hx-swap="innerHTML"
+					data-testid="repo-page-next"
+				>Next</a>
+			} else {
+				<span class="disabled" data-testid="repo-page-next-disabled">Next</span>
+			}
+		</nav>
+	}
+}

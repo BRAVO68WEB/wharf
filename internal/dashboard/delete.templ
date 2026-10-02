@@ -1,0 +1,53 @@
+package dashboard
+
+import (
+	"net/url"
+
+	"github.com/user/better-docker-registry/templates"
+)
+
+// DeleteTagButton is the tag-row delete control (plan task 17): it deletes
+// one tag reference after the operator confirms, and the empty outerHTML swap
+// removes the row.
+//
+// "click consume" keeps the click from bubbling into the row's hx-get — htmx
+// fires per-element on a bubbled event, so without it a delete click would
+// also load the manifest detail. The consume modifier needs htmx 1.9.10+/2.x
+// (both versions this dashboard loads).
+templ DeleteTagButton(repoName, tagName, csrfToken string) {
+	<button
+		type="button"
+		class="btn"
+		data-testid="delete-tag-btn"
+		hx-delete={ deleteTagURL(repoName, tagName) }
+		hx-confirm={ "Delete tag " + tagName + "?" }
+		hx-target="closest tr"
+		hx-swap="outerHTML"
+		hx-trigger="click consume"
+		hx-headers={ templates.CSRFHeaders(csrfToken) }
+	>Delete</button>
+}
+
+// DeleteManifestButton is the manifest detail's delete control: it removes
+// the manifest and every tag pointing at it, then swaps the detail panel out.
+// The DELETE target is the manifest resource URL the detail view already
+// resolves — same path, different method.
+templ DeleteManifestButton(repoName, digest, csrfToken string) {
+	<button
+		type="button"
+		class="btn"
+		data-testid="delete-manifest-btn"
+		hx-delete={ manifestDetailURL(repoName, digest) }
+		hx-confirm={ "Delete manifest " + digest + "?" }
+		hx-target="closest [data-testid='manifest-panel']"
+		hx-swap="outerHTML"
+		hx-headers={ templates.CSRFHeaders(csrfToken) }
+	>Delete manifest</button>
+}
+
+// deleteTagURL builds the dashboard DELETE target of one tag inside a repo.
+// Repository names carry slashes ("library/nginx"), so the name is escaped
+// into a single segment and CollapseRepoName gives it back.
+func deleteTagURL(repoName, tag string) string {
+	return "/dashboard/repos/" + url.PathEscape(repoName) + "/tags/" + url.PathEscape(tag)
+}

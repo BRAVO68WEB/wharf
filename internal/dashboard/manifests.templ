@@ -1,0 +1,94 @@
+package dashboard
+
+// ManifestDetail is the structured manifest detail fragment HTMX swaps into
+// the #manifest-detail container. The raw JSON payload is never displayed.
+// csrfToken is the session CSRF token the delete button renders into its
+// hx-headers.
+templ ManifestDetail(repoName string, d manifestDisplay, csrfToken string) {
+	<div data-testid="manifest-panel">
+		<h2>Manifest Detail</h2>
+		<dl>
+			<dt>Digest</dt>
+			<dd><code>{ d.Digest }</code></dd>
+			<dt>Media Type</dt>
+			<dd>{ d.MediaType }</dd>
+			<dt>Size</dt>
+			<dd>{ FormatBytes(d.Size) }</dd>
+			if d.ConfigDigest != "" {
+				<dt>Config Digest</dt>
+				<dd><code>{ d.ConfigDigest }</code></dd>
+			}
+		</dl>
+		if len(d.Layers) > 0 {
+			<h3>Layers</h3>
+			<table>
+				<thead>
+					<tr>
+						<th>Digest</th>
+						<th>Size</th>
+						<th>Media Type</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, l := range d.Layers {
+						@LayerRow(l)
+					}
+				</tbody>
+			</table>
+		} else {
+			<p data-testid="empty-state">No layers.</p>
+		}
+		<p>@DeleteManifestButton(repoName, d.Digest, csrfToken)</p>
+	</div>
+}
+
+// LayerRow is one row of the manifest's layer table.
+templ LayerRow(l layerDisplay) {
+	<tr data-testid="layer-row">
+		<td><code>{ l.Digest }</code></td>
+		<td>{ FormatBytes(l.Size) }</td>
+		<td>{ l.MediaType }</td>
+	</tr>
+}
+
+// ManifestError is the error fragment shown when a manifest payload cannot
+// be parsed.
+templ ManifestError(message string) {
+	<div>
+		<h2>Manifest Detail</h2>
+		<p data-testid="manifest-error">Error: { message }</p>
+	</div>
+}
+
+// ManifestDetailPage is the full-page shell around the manifest detail,
+// used for direct (non-HTMX) navigation.
+templ ManifestDetailPage(repoName string, d manifestDisplay, csrfToken string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>Manifest · { d.Digest }</title>
+			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+		</head>
+		<body>
+			@ManifestDetail(repoName, d, csrfToken)
+		</body>
+	</html>
+}
+
+// ManifestErrorPage is the full-page shell around a manifest parse error.
+templ ManifestErrorPage(message string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>Manifest Error</title>
+			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+		</head>
+		<body>
+			@ManifestError(message)
+		</body>
+	</html>
+}

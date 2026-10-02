@@ -1,0 +1,43 @@
+# Default configuration baked into the Docker image (/etc/registry/config.yml).
+# Filesystem blob storage under /var/lib/registry — mount a volume there to
+# keep blobs and metadata across container restarts.
+#
+# Secrets never live in this file. REGISTRY_SESSION_SECRET must be set in the
+# container environment (docker run -e REGISTRY_SESSION_SECRET=...) or the
+# process refuses to start.
+
+server:
+  port: 5000
+  # Zero on purpose: blob uploads/downloads stream for a long time and a
+  # non-zero timeout would truncate them.
+  read_timeout: 0s
+  write_timeout: 0s
+  # Bytes. 0 = unlimited.
+  max_upload_size: 0
+
+storage:
+  type: filesystem
+  path: /var/lib/registry/blobs
+
+database:
+  path: /var/lib/registry/registry.db
+
+auth:
+  jwt:
+    # Signing key path. If the file does not exist at startup, the registry
+    # generates a fresh RSA key there (mode 0600) so a fresh deploy boots
+    # without manual provisioning. Mount your own PEM to pin the key (and
+    # keep previously issued tokens valid) across restarts.
+    private_key_path: /var/lib/registry/jwt_private.pem
+    issuer: better-docker-registry
+    service: registry.docker.io
+    token_ttl: 15m
+  session:
+    secret_env: REGISTRY_SESSION_SECRET
+    ttl: 24h
+
+gc:
+  batch_size: 256
+
+logging:
+  level: info

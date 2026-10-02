@@ -1,0 +1,107 @@
+// Base layout for the HTMX dashboard (plan task 15). Every full-page
+// dashboard view renders inside Layout; HTMX partials deliberately render
+// WITHOUT it so they can be swapped into the live document.
+package templates
+
+// Layout is the shared dashboard shell: document head with the HTMX runtime,
+// the top navigation (Repos / GC / Logout) and the page content slot.
+//
+// chrome carries the title, the operator shown in the nav bar and the session
+// CSRF token, which is rendered into the Logout control's hx-headers so the
+// POST satisfies middleware.CSRF (it reads only the X-CSRF-Token header).
+templ Layout(chrome Chrome, content templ.Component) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ chrome.Title }</title>
+			<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+			<style>
+				:root { color-scheme: light dark; }
+				* { box-sizing: border-box; }
+				body {
+					margin: 0;
+					font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+					line-height: 1.5;
+				}
+				.topbar {
+					display: flex;
+					align-items: center;
+					gap: 1.5rem;
+					padding: 0.75rem 1.25rem;
+					border-bottom: 1px solid rgba(127, 127, 127, 0.35);
+				}
+				.brand { font-weight: 600; text-decoration: none; }
+				.nav { display: flex; align-items: center; gap: 1rem; }
+				.nav a { text-decoration: none; }
+				.nav a[aria-current="page"] { font-weight: 600; }
+				.whoami { margin-left: auto; opacity: 0.7; font-size: 0.875rem; }
+				.page { padding: 1.25rem; }
+				.table { border-collapse: collapse; width: 100%; }
+				.table th, .table td {
+					padding: 0.5rem 0.75rem;
+					text-align: left;
+					border-bottom: 1px solid rgba(127, 127, 127, 0.3);
+				}
+				.table .num { text-align: right; font-variant-numeric: tabular-nums; }
+				.table tbody tr:hover { background: rgba(127, 127, 127, 0.12); }
+				.toolbar { margin: 0 0 1rem; }
+				.toolbar input[type="search"] {
+					width: min(28rem, 100%);
+					padding: 0.45rem 0.65rem;
+					font: inherit;
+					border: 1px solid rgba(127, 127, 127, 0.5);
+					border-radius: 0.375rem;
+				}
+				.pager {
+					display: flex;
+					align-items: center;
+					gap: 0.75rem;
+					margin-top: 1rem;
+					font-size: 0.875rem;
+				}
+				.pager .disabled { opacity: 0.45; }
+				.empty { opacity: 0.75; font-style: italic; }
+				.visually-hidden {
+					position: absolute;
+					width: 1px;
+					height: 1px;
+					overflow: hidden;
+					clip-path: inset(50%);
+				}
+				.btn {
+					font: inherit;
+					padding: 0.35rem 0.75rem;
+					border: 1px solid rgba(127, 127, 127, 0.5);
+					border-radius: 0.375rem;
+					background: transparent;
+					cursor: pointer;
+				}
+			</style>
+		</head>
+		<body>
+			<header class="topbar">
+				<a class="brand" href="/dashboard">better-docker-registry</a>
+				<nav class="nav" aria-label="Main">
+					<a href="/dashboard" data-testid="nav-repos">Repos</a>
+					<a href="/dashboard/gc" data-testid="nav-gc">GC</a>
+					<button
+						type="button"
+						class="btn"
+						data-testid="nav-logout"
+						hx-post="/dashboard/logout"
+						hx-headers={ CSRFHeaders(chrome.CSRFToken) }
+						hx-swap="none"
+					>Logout</button>
+				</nav>
+				if chrome.Username != "" {
+					<span class="whoami" data-testid="nav-user">{ chrome.Username }</span>
+				}
+			</header>
+			<main class="page">
+				@content
+			</main>
+		</body>
+	</html>
+}

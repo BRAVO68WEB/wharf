@@ -1,0 +1,139 @@
+package dashboard
+
+import (
+	"strconv"
+
+	"github.com/user/better-docker-registry/templates"
+)
+
+// GcPanel is the full GC page body (plan task 18): stats summary, the
+// dry-run and real-run buttons, and the empty #gc-results swap target.
+templ GcPanel(data gcPanelData) {
+	<h1>Garbage collection</h1>
+	@GcStatsTable(data.Stats)
+	<div class="toolbar">
+		<button
+			type="button"
+			class="btn"
+			data-testid="gc-dry-run-btn"
+			hx-post="/dashboard/gc/dry-run"
+			hx-target="#gc-results"
+			hx-swap="innerHTML"
+			hx-headers={ templates.CSRFHeaders(data.CSRFToken) }
+		>Dry run</button>
+		<button
+			type="button"
+			class="btn"
+			data-testid="gc-run-btn"
+			hx-post="/dashboard/gc/run"
+			hx-target="#gc-results"
+			hx-swap="innerHTML"
+			hx-headers={ templates.CSRFHeaders(data.CSRFToken) }
+			hx-confirm={ data.ConfirmMessage }
+		>Run GC</button>
+	</div>
+	<div id="gc-results"></div>
+}
+
+// GcPanelWithResults is the page body with a result already rendered into
+// #gc-results — the non-HTMX answer to a dry run or run POST.
+templ GcPanelWithResults(data gcPanelData, results gcResultsData) {
+	<h1>Garbage collection</h1>
+	@GcStatsTable(data.Stats)
+	<div class="toolbar">
+		<button
+			type="button"
+			class="btn"
+			data-testid="gc-dry-run-btn"
+			hx-post="/dashboard/gc/dry-run"
+			hx-target="#gc-results"
+			hx-swap="innerHTML"
+			hx-headers={ templates.CSRFHeaders(data.CSRFToken) }
+		>Dry run</button>
+		<button
+			type="button"
+			class="btn"
+			data-testid="gc-run-btn"
+			hx-post="/dashboard/gc/run"
+			hx-target="#gc-results"
+			hx-swap="innerHTML"
+			hx-headers={ templates.CSRFHeaders(data.CSRFToken) }
+			hx-confirm={ data.ConfirmMessage }
+		>Run GC</button>
+	</div>
+	<div id="gc-results">
+		if results.Heading != "" || len(results.Blobs) > 0 {
+			@GcResults(results)
+		}
+	</div>
+}
+
+// GcStatsTable summarises the blob store: total blobs, how many are still
+// referenced and how much garbage is sitting in it.
+templ GcStatsTable(stats gcStats) {
+	<table class="table" data-testid="gc-stats">
+		<tbody>
+			<tr>
+				<th>Total blobs</th>
+				<td class="num" data-testid="gc-total-blobs">{ formatCount(stats.TotalBlobs) }</td>
+			</tr>
+			<tr>
+				<th>Referenced blobs</th>
+				<td class="num" data-testid="gc-referenced-blobs">{ formatCount(stats.ReferencedBlobs) }</td>
+			</tr>
+			<tr>
+				<th>Unreferenced blobs</th>
+				<td class="num" data-testid="gc-unreferenced-blobs">{ formatCount(stats.UnreferencedBlobs) }</td>
+			</tr>
+			<tr>
+				<th>Unreferenced bytes</th>
+				<td class="num" data-testid="gc-unreferenced-bytes">{ FormatBytes(stats.UnreferencedBytes) }</td>
+			</tr>
+		</tbody>
+	</table>
+}
+
+// GcResults is the swappable outcome fragment: the dry-run listing or the
+// real-run summary, both carrying the exact blob rows involved.
+templ GcResults(data gcResultsData) {
+	<div data-testid="gc-results-content">
+		<p data-testid="gc-results-heading">{ data.Heading }</p>
+		if data.Run {
+			<p data-testid="gc-freed">Bytes freed: { FormatBytes(data.Bytes) }</p>
+			if data.Failed > 0 {
+				<p data-testid="gc-failed">Failed deletions: { formatCount(int64(data.Failed)) }</p>
+			}
+		}
+		if len(data.Blobs) > 0 {
+			<table class="table" data-testid="gc-result-table">
+				<thead>
+					<tr>
+						<th>Digest</th>
+						<th>Size</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, b := range data.Blobs {
+						<tr data-testid="gc-result-row">
+							<td><code>{ b.Digest }</code></td>
+							<td class="num">{ FormatBytes(b.Size) }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		} else {
+			<p class="empty" data-testid="gc-results-empty">Nothing to collect.</p>
+		}
+	</div>
+}
+
+// GcError is the failure fragment (already-running, engine failure). It
+// swaps in with a 200 so the operator sees the message at all.
+templ GcError(message string) {
+	<p class="empty" data-testid="gc-error">{ message }</p>
+}
+
+// formatCount renders an int64 count for template text interpolation.
+func formatCount(n int64) string {
+	return strconv.FormatInt(n, 10)
+}

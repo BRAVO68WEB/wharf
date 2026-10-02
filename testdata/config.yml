@@ -1,0 +1,54 @@
+# Sample configuration for better-docker-registry.
+# Secrets are never stored here: only environment variable NAMES appear in
+# this file. Set the referenced variables in the process environment before
+# starting the registry.
+
+server:
+  port: 5000
+  # Zero disables these on purpose: blob uploads/downloads stream for a long
+  # time and a non-zero timeout would truncate them.
+  read_timeout: 0s
+  write_timeout: 0s
+  # Bytes. 0 = unlimited.
+  max_upload_size: 0
+
+storage:
+  # "filesystem" or "s3"
+  type: filesystem
+  # Blob root directory for the filesystem backend.
+  path: ./data/blobs
+  s3:
+    # Empty endpoint = AWS S3. Set for MinIO/R2/etc.
+    endpoint: ""
+    region: us-east-1
+    bucket: registry-blobs
+    # Names of env vars holding credentials. Both empty = AWS SDK default
+    # credential chain (IAM roles, shared config, ...).
+    access_key_env: REGISTRY_S3_ACCESS_KEY
+    secret_key_env: REGISTRY_S3_SECRET_KEY
+    # Required for MinIO; harmless for AWS.
+    force_path_style: true
+
+database:
+  # Absolute: the SQLite DSN builder emits file:<path>; a relative path like
+  # ./data/registry.db becomes file:./data/registry.db, which the driver
+  # rejects with "invalid uri authority".
+  path: /Users/jyotirmoybandyopadhayaya/Projects/OSS/better-docker-registry/data/registry.db
+
+auth:
+  jwt:
+    # PEM file with the RSA/ECDSA private key used to sign tokens.
+    private_key_path: ./deploy/jwt_private.pem
+    issuer: better-docker-registry
+    service: registry.docker.io
+    token_ttl: 15m
+  session:
+    # Name of the env var holding the session signing secret.
+    secret_env: REGISTRY_SESSION_SECRET
+    ttl: 24h
+
+gc:
+  batch_size: 256
+
+logging:
+  level: info
