@@ -10,9 +10,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/user/better-docker-registry/internal/auth"
-	"github.com/user/better-docker-registry/internal/dashboard"
-	"github.com/user/better-docker-registry/internal/middleware"
+	"github.com/BRAVO68WEB/wharf/internal/auth"
+	"github.com/BRAVO68WEB/wharf/internal/dashboard"
+	"github.com/BRAVO68WEB/wharf/internal/middleware"
 )
 
 func TestJSONLogin_returnsCSRFAndCookie(t *testing.T) {

@@ -16,7 +16,7 @@ import (
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
 
-	"github.com/user/better-docker-registry/internal/storage"
+	"github.com/BRAVO68WEB/wharf/internal/storage"
 )
 
 // Compile-time proof that Store honours the contract the registry expects.

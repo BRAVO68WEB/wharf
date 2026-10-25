@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/db"
 )
 
 func Test_PutManifest_when_ImageManifest_then_CreatesRepositoryAndManifest(t *testing.T) {

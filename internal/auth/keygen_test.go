@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/auth"
-	"github.com/user/better-docker-registry/internal/config"
+	"github.com/BRAVO68WEB/wharf/internal/auth"
+	"github.com/BRAVO68WEB/wharf/internal/config"
 )
 
 // Test_EnsureRSAPrivateKey_when_Missing_then_GeneratesLoadableKey pins the

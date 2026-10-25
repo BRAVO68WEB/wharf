@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/user/better-docker-registry/internal/gc"
-	"github.com/user/better-docker-registry/internal/storage"
+	"github.com/BRAVO68WEB/wharf/internal/gc"
+	"github.com/BRAVO68WEB/wharf/internal/storage"
 )
 
 // Helpers are gcTest-prefixed: package gc_test is shared with the engine

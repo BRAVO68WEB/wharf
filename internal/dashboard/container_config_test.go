@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/dashboard"
-	"github.com/user/better-docker-registry/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/dashboard"
+	"github.com/BRAVO68WEB/wharf/internal/db"
 )
 
 // Container config tests: manifest detail reads the image config blob from

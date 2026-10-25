@@ -29,7 +29,7 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 
-	s3store "github.com/user/better-docker-registry/internal/storage/s3"
+	s3store "github.com/BRAVO68WEB/wharf/internal/storage/s3"
 )
 
 const (

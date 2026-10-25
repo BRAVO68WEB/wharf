@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Docker CLI end-to-end against a local better-docker-registry:
+# Docker CLI end-to-end against a local Wharf:
 #   1. pull/push roundtrip (alpine)
 #   2. multi-arch buildx push + pull
 #   3. 5 GB blob streaming with registry RSS < 256 MB
@@ -15,7 +15,7 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 EVIDENCE="$ROOT/.omo/evidence/task-22-docker-registry-htmx"
-RUN_DIR=$(mktemp -d /tmp/bdr-e2e-docker-XXXXXX)
+RUN_DIR=$(mktemp -d /tmp/wharf-e2e-docker-XXXXXX)
 PORT=${BDR_E2E_PORT:-5050}
 REG=127.0.0.1:$PORT
 RSS_LIMIT_KB=$((256 * 1024))
@@ -23,7 +23,7 @@ REGISTRY_PID=""
 
 cleanup() {
   [[ -n "$REGISTRY_PID" ]] && kill "$REGISTRY_PID" 2>/dev/null || true
-  docker rm -f bdr-e2e >/dev/null 2>&1 || true
+  docker rm -f wharf-e2e >/dev/null 2>&1 || true
   rm -rf "$RUN_DIR"
 }
 trap cleanup EXIT
@@ -32,7 +32,7 @@ mkdir -p "$EVIDENCE"
 exec > >(tee "$EVIDENCE/e2e-docker.log") 2>&1
 
 echo "== building registry image =="
-docker build -t bdr-e2e "$ROOT"
+docker build -t wharf-e2e "$ROOT"
 make -C "$ROOT" build
 openssl genrsa -out "$RUN_DIR/jwt_private.pem" 2048 2>/dev/null
 
@@ -51,7 +51,7 @@ database:
 auth:
   jwt:
     private_key_path: /var/lib/registry/jwt_private.pem
-    issuer: better-docker-registry
+    issuer: wharf
     service: registry.docker.io
     token_ttl: 15m
   session:
@@ -65,12 +65,12 @@ logging:
 EOF
 
 echo "== starting registry container on $REG =="
-docker rm -f bdr-e2e >/dev/null 2>&1 || true
-docker run -d --name bdr-e2e -p "$PORT:5000" \
+docker rm -f wharf-e2e >/dev/null 2>&1 || true
+docker run -d --name wharf-e2e -p "$PORT:5000" \
   -e REGISTRY_SESSION_SECRET \
   -v "$RUN_DIR/config.yml:/etc/registry/config.yml:ro" \
   -v "$RUN_DIR/jwt_private.pem:/var/lib/registry/jwt_private.pem:ro" \
-  bdr-e2e >/dev/null
+  wharf-e2e >/dev/null
 for _ in $(seq 1 50); do
   curl -sf "http://$REG/healthz" >/dev/null 2>&1 && break
   sleep 0.2
@@ -101,7 +101,7 @@ echo "multi-arch OK"
 
 echo
 echo "== phase 3: 5 GB blob streaming (RSS < 256 MB) =="
-docker rm -f bdr-e2e >/dev/null
+docker rm -f wharf-e2e >/dev/null
 mkdir -p "$RUN_DIR/blobs"
 cat >"$RUN_DIR/config-host.yml" <<EOF
 server:
@@ -117,7 +117,7 @@ database:
 auth:
   jwt:
     private_key_path: $RUN_DIR/jwt_private.pem
-    issuer: better-docker-registry
+    issuer: wharf
     service: registry.docker.io
     token_ttl: 15m
   session:
@@ -129,7 +129,7 @@ gc:
 logging:
   level: info
 EOF
-"$ROOT/bin/registry" --config "$RUN_DIR/config-host.yml" --addr "127.0.0.1:$PORT" \
+"$ROOT/bin/wharf" --config "$RUN_DIR/config-host.yml" --addr "127.0.0.1:$PORT" \
   >"$RUN_DIR/registry.log" 2>&1 &
 REGISTRY_PID=$!
 for _ in $(seq 1 50); do

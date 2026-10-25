@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/db"
 )
 
 func Test_GetManifest_when_PushedByTag_then_ReturnsIdenticalBytes(t *testing.T) {

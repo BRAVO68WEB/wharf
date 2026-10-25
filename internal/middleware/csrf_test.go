@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/middleware"
+	"github.com/BRAVO68WEB/wharf/internal/middleware"
 )
 
 // csrfProbe returns a CSRF-wrapped handler recording whether it ran.

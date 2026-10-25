@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/api"
-	"github.com/user/better-docker-registry/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/api"
+	"github.com/BRAVO68WEB/wharf/internal/db"
 )
 
 // newHealthFixture builds a Health over a real SQLite database and an

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/db"
 )
 
 // Cross-repository and overwrite coverage for the retag flow: a retag to

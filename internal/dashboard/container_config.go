@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/user/better-docker-registry/internal/storage"
+	"github.com/BRAVO68WEB/wharf/internal/storage"
 )
 
 // configBlobMaxBytes bounds the config-blob read. Image config blobs are a

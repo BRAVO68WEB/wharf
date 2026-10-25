@@ -1,5 +1,5 @@
 ---
-name: Registry
+name: Wharf
 description: A private registry console in the Docker Hub layout.
 colors:
   blue: "#1D63ED"

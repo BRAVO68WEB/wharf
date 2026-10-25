@@ -9,3 +9,4 @@ site/node_modules/
 site/out/
 # Generated on first start. Do not commit a signing key.
 jwt_private.pem
+/data

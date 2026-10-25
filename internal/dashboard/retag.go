@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/user/better-docker-registry/internal/api"
-	"github.com/user/better-docker-registry/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/api"
+	"github.com/BRAVO68WEB/wharf/internal/db"
 )
 
 // maxRetagFormBytes bounds the retag body. Two short text fields do not

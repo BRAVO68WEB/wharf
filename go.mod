@@ -1,4 +1,4 @@
-module github.com/user/better-docker-registry
+module github.com/BRAVO68WEB/wharf
 
 go 1.25.4
 

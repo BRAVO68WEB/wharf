@@ -20,6 +20,8 @@ func NewAccessToken() (plain, hash string, err error) {
 	if _, err = rand.Read(buf); err != nil {
 		return "", "", fmt.Errorf("access token: %w", err)
 	}
-	plain = "bdr_" + hex.EncodeToString(buf)
+	// New tokens start with wharf_. A token issued earlier starts with bdr_
+	// and still verifies: the stored value is a hash of the full string.
+	plain = "wharf_" + hex.EncodeToString(buf)
 	return plain, HashAccessToken(plain), nil
 }

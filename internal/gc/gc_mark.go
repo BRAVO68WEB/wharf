@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/user/better-docker-registry/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/db"
 )
 
 // gcRepoPage bounds one keyset page of the repository walk in the mark phase.

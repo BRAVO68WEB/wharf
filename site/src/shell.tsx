@@ -22,7 +22,7 @@ export function Shell({
         <div className="topbar-start">
           <NavLink className="brand" to="/" end>
             <Mark />
-            Registry
+            Wharf
           </NavLink>
           <nav aria-label="Dashboard">
             <NavLink to="/" end>

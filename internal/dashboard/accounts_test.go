@@ -11,10 +11,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/user/better-docker-registry/internal/auth"
-	"github.com/user/better-docker-registry/internal/dashboard"
-	"github.com/user/better-docker-registry/internal/db"
-	"github.com/user/better-docker-registry/internal/gc"
+	"github.com/BRAVO68WEB/wharf/internal/auth"
+	"github.com/BRAVO68WEB/wharf/internal/dashboard"
+	"github.com/BRAVO68WEB/wharf/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/gc"
 )
 
 func TestAPI_accounts_serviceTokenAndAdminGate(t *testing.T) {
@@ -36,7 +36,7 @@ func TestAPI_accounts_serviceTokenAndAdminGate(t *testing.T) {
 	req = req.WithContext(auth.ContextWithSession(req.Context(), auth.SessionUser{ID: admin.ID, Username: "admin", IsAdmin: true}))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
-	if rec.Code != http.StatusCreated || !strings.Contains(rec.Body.String(), `"token":"bdr_`) {
+	if rec.Code != http.StatusCreated || !strings.Contains(rec.Body.String(), `"token":"wharf_`) {
 		t.Fatalf("create service = %d body=%s", rec.Code, rec.Body.String())
 	}
 

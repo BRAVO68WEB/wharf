@@ -11,8 +11,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/storage"
-	s3store "github.com/user/better-docker-registry/internal/storage/s3"
+	"github.com/BRAVO68WEB/wharf/internal/storage"
+	s3store "github.com/BRAVO68WEB/wharf/internal/storage/s3"
 )
 
 // Compile-time proof that the driver honours the interface under contract.

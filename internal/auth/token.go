@@ -14,7 +14,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/user/better-docker-registry/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/db"
 )
 
 // ErrInvalidScope is the sentinel behind every ParseScope failure, so callers

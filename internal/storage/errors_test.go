@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/storage"
+	"github.com/BRAVO68WEB/wharf/internal/storage"
 )
 
 // Given: a registry Error wrapped in a caller's message

@@ -6,8 +6,8 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/user/better-docker-registry/internal/auth"
-	"github.com/user/better-docker-registry/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/auth"
+	"github.com/BRAVO68WEB/wharf/internal/db"
 )
 
 func TestTokenEndpoint_serviceAccountAcceptsToken(t *testing.T) {

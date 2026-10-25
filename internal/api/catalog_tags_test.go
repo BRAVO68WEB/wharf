@@ -7,8 +7,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/api"
-	"github.com/user/better-docker-registry/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/api"
+	"github.com/BRAVO68WEB/wharf/internal/db"
 )
 
 // tagsBody is the GET /v2/{name}/tags/list response:

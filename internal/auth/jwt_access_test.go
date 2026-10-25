@@ -3,7 +3,7 @@ package auth_test
 import (
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/auth"
+	"github.com/BRAVO68WEB/wharf/internal/auth"
 )
 
 // Test_HasAccess_when_GrantedAction_then_True covers the check the Bearer

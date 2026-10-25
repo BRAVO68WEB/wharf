@@ -1,9 +1,9 @@
 package dashboard
 
 import (
-	"github.com/user/better-docker-registry/internal/db"
-	"github.com/user/better-docker-registry/internal/gc"
-	"github.com/user/better-docker-registry/internal/storage"
+	"github.com/BRAVO68WEB/wharf/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/gc"
+	"github.com/BRAVO68WEB/wharf/internal/storage"
 )
 
 // GCHandler holds the sweep the dashboard JSON API runs. The React

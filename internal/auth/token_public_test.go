@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/auth"
-	"github.com/user/better-docker-registry/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/auth"
+	"github.com/BRAVO68WEB/wharf/internal/db"
 )
 
 func Test_TokenEndpoint_when_PublishedPull_then_AnonymousToken(t *testing.T) {

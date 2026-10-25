@@ -19,9 +19,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/user/better-docker-registry/internal/auth"
-	"github.com/user/better-docker-registry/internal/config"
-	"github.com/user/better-docker-registry/internal/middleware"
+	"github.com/BRAVO68WEB/wharf/internal/auth"
+	"github.com/BRAVO68WEB/wharf/internal/config"
+	"github.com/BRAVO68WEB/wharf/internal/middleware"
 )
 
 var failures int

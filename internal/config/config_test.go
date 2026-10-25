@@ -285,7 +285,7 @@ func TestLoad_InvalidConfigExitsOne(t *testing.T) {
 	}
 
 	// When: the process loads it
-	cmd := exec.Command("go", "run", "../../cmd/registry", "--config", path)
+	cmd := exec.Command("go", "run", "../../cmd/wharf", "--config", path)
 	cmd.Env = append(os.Environ(), "REGISTRY_SESSION_SECRET=test-session-secret-32bytes-long")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

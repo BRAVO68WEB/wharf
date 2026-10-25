@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/user/better-docker-registry/internal/auth"
-	"github.com/user/better-docker-registry/internal/config"
-	"github.com/user/better-docker-registry/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/auth"
+	"github.com/BRAVO68WEB/wharf/internal/config"
+	"github.com/BRAVO68WEB/wharf/internal/db"
 )
 
 func Test_LoginRejected_when_PasswordWrong(t *testing.T) {

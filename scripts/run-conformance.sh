@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the OCI Distribution Spec conformance suite against a local
-# better-docker-registry instance.
+# Wharf instance.
 #
 # Usage: scripts/run-conformance.sh <filesystem|minio>
 #
@@ -30,8 +30,8 @@ make -C "$ROOT" build
 openssl genrsa -out "$RUN_DIR/jwt_private.pem" 2048 2>/dev/null
 
 export REGISTRY_SESSION_SECRET=e2e-session-secret-padding-32b!!
-export REGISTRY_S3_ACCESS_KEY=bdr-e2e-access
-export REGISTRY_S3_SECRET_KEY=bdr-e2e-secret
+export REGISTRY_S3_ACCESS_KEY=wharf-e2e-access
+export REGISTRY_S3_SECRET_KEY=wharf-e2e-secret
 
 if [[ "$BACKEND" == "minio" ]]; then
   echo "== starting minio =="
@@ -44,8 +44,8 @@ if [[ "$BACKEND" == "minio" ]]; then
     curl -sf http://127.0.0.1:9000/minio/health/live >/dev/null 2>&1 && break
     sleep 0.2
   done
-  mc alias set bdr-local http://127.0.0.1:9000 "$REGISTRY_S3_ACCESS_KEY" "$REGISTRY_S3_SECRET_KEY" >/dev/null
-  mc mb --ignore-existing bdr-local/registry-blobs >/dev/null
+  mc alias set wharf-local http://127.0.0.1:9000 "$REGISTRY_S3_ACCESS_KEY" "$REGISTRY_S3_SECRET_KEY" >/dev/null
+  mc mb --ignore-existing wharf-local/registry-blobs >/dev/null
   cat >"$RUN_DIR/config.yml" <<EOF
 server:
   port: $PORT
@@ -66,7 +66,7 @@ database:
 auth:
   jwt:
     private_key_path: $RUN_DIR/jwt_private.pem
-    issuer: better-docker-registry
+    issuer: wharf
     service: registry.docker.io
     token_ttl: 15m
   session:
@@ -94,7 +94,7 @@ database:
 auth:
   jwt:
     private_key_path: $RUN_DIR/jwt_private.pem
-    issuer: better-docker-registry
+    issuer: wharf
     service: registry.docker.io
     token_ttl: 15m
   session:
@@ -109,7 +109,7 @@ EOF
 fi
 
 echo "== starting registry ($BACKEND) on 127.0.0.1:$PORT =="
-"$ROOT/bin/registry" --config "$RUN_DIR/config.yml" --addr "127.0.0.1:$PORT" \
+"$ROOT/bin/wharf" --config "$RUN_DIR/config.yml" --addr "127.0.0.1:$PORT" \
   >"$RUN_DIR/registry.log" 2>&1 &
 REGISTRY_PID=$!
 for _ in $(seq 1 50); do

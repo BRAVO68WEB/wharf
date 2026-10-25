@@ -5,8 +5,8 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/user/better-docker-registry/internal/db"
-	"github.com/user/better-docker-registry/internal/storage"
+	"github.com/BRAVO68WEB/wharf/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/storage"
 )
 
 const (

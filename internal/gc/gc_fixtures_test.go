@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/user/better-docker-registry/internal/db"
-	"github.com/user/better-docker-registry/internal/storage"
+	"github.com/BRAVO68WEB/wharf/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/storage"
 )
 
 // Engine tests use a real temp SQLite (db.OpenAndMigrate) and a map-backed

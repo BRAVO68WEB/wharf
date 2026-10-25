@@ -13,9 +13,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/user/better-docker-registry/internal/db"
-	"github.com/user/better-docker-registry/internal/gc"
-	"github.com/user/better-docker-registry/internal/storage"
+	"github.com/BRAVO68WEB/wharf/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/gc"
+	"github.com/BRAVO68WEB/wharf/internal/storage"
 )
 
 // HTTPAPI is the JSON API the embedded dashboard calls. Paths are relative

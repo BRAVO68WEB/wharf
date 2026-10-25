@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/gc"
+	"github.com/BRAVO68WEB/wharf/internal/gc"
 )
 
 // Progress and batching tests (plan task 19's progress callback and bounded

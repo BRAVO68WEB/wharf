@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/middleware"
+	"github.com/BRAVO68WEB/wharf/internal/middleware"
 )
 
 // logCapture is a slog logger writing JSON lines into an inspectable buffer.

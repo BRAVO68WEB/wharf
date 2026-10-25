@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/api"
-	"github.com/user/better-docker-registry/internal/gc"
-	"github.com/user/better-docker-registry/internal/middleware"
+	"github.com/BRAVO68WEB/wharf/internal/api"
+	"github.com/BRAVO68WEB/wharf/internal/gc"
+	"github.com/BRAVO68WEB/wharf/internal/middleware"
 )
 
 // gcTestCSRFToken is the session-bound CSRF token the tests bind into the

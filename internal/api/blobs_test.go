@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/api"
-	"github.com/user/better-docker-registry/internal/db"
-	"github.com/user/better-docker-registry/internal/storage"
+	"github.com/BRAVO68WEB/wharf/internal/api"
+	"github.com/BRAVO68WEB/wharf/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/storage"
 )
 
 func blobRouter(t *testing.T, store *fakeStorage, repo, digest string) (http.Handler, db.Querier) {

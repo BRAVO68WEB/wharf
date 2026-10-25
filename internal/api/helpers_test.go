@@ -15,8 +15,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/db"
-	"github.com/user/better-docker-registry/internal/storage"
+	"github.com/BRAVO68WEB/wharf/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/storage"
 )
 
 // fakeStorage is an in-memory storage.Storage test double. It buffers blobs

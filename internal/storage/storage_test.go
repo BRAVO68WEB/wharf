@@ -10,7 +10,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/storage"
+	"github.com/BRAVO68WEB/wharf/internal/storage"
 )
 
 // memStorage is an in-memory storage.Storage fake. It is a test double that

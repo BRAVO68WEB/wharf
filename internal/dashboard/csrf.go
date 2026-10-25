@@ -3,8 +3,8 @@ package dashboard
 import (
 	"net/http"
 
-	"github.com/user/better-docker-registry/internal/auth"
-	"github.com/user/better-docker-registry/internal/middleware"
+	"github.com/BRAVO68WEB/wharf/internal/auth"
+	"github.com/BRAVO68WEB/wharf/internal/middleware"
 )
 
 // WithSessionCSRF binds the session's raw token into the request context slot

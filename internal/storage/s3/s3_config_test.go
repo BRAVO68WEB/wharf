@@ -10,7 +10,7 @@ import (
 	"os"
 	"testing"
 
-	s3store "github.com/user/better-docker-registry/internal/storage/s3"
+	s3store "github.com/BRAVO68WEB/wharf/internal/storage/s3"
 )
 
 // Given: a store

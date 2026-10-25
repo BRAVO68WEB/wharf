@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/auth"
-	"github.com/user/better-docker-registry/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/auth"
+	"github.com/BRAVO68WEB/wharf/internal/db"
 )
 
 func TestAPI_myTokens_createListRevoke(t *testing.T) {
@@ -39,7 +39,7 @@ func TestAPI_myTokens_createListRevoke(t *testing.T) {
 	}
 
 	created := apiDoAs(t, h, adaUser, http.MethodPost, "/api/tokens", `{"name":"laptop"}`)
-	if created.Code != http.StatusCreated || !strings.Contains(created.Body.String(), `"token":"bdr_`) {
+	if created.Code != http.StatusCreated || !strings.Contains(created.Body.String(), `"token":"wharf_`) {
 		t.Fatalf("create = %d body=%s", created.Code, created.Body.String())
 	}
 	var body map[string]any
@@ -47,7 +47,7 @@ func TestAPI_myTokens_createListRevoke(t *testing.T) {
 		t.Fatal(err)
 	}
 	token, _ := body["token"].(string)
-	if !strings.HasPrefix(token, "bdr_") || strings.Contains(created.Body.String(), "token_hash") {
+	if !strings.HasPrefix(token, "wharf_") || strings.Contains(created.Body.String(), "token_hash") {
 		t.Fatalf("create body = %s", created.Body.String())
 	}
 
@@ -67,7 +67,7 @@ func TestAPI_myTokens_createListRevoke(t *testing.T) {
 	if len(list.Tokens) != 1 || list.Tokens[0].Name != "laptop" {
 		t.Fatalf("tokens = %#v", list.Tokens)
 	}
-	if strings.Contains(listed.Body.String(), "bdr_") {
+	if strings.Contains(listed.Body.String(), "wharf_") {
 		t.Fatal("list returned a token secret")
 	}
 	id := int64(list.Tokens[0].ID)

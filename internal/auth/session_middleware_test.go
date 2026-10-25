@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/user/better-docker-registry/internal/auth"
+	"github.com/BRAVO68WEB/wharf/internal/auth"
 )
 
 func Test_MiddlewareRedirects_when_NoCookie(t *testing.T) {

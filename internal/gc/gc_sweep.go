@@ -6,7 +6,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/user/better-docker-registry/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/db"
 )
 
 // gcPlan is one mark-and-sweep planning pass: the blob inventory size and the

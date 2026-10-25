@@ -14,7 +14,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/user/better-docker-registry/internal/config"
+	"github.com/BRAVO68WEB/wharf/internal/config"
 )
 
 // Claim-set vocabulary of the OCI token auth spec.

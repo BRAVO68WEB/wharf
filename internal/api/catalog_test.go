@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/api"
-	"github.com/user/better-docker-registry/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/api"
+	"github.com/BRAVO68WEB/wharf/internal/db"
 )
 
 // catalogBody is the GET /v2/_catalog response:

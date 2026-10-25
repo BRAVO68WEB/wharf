@@ -1,4 +1,4 @@
-// Command registry serves the better-docker-registry OCI Distribution Spec
+// Command wharf serves the Wharf OCI Distribution Spec
 // registry and the dashboard embedded in this binary.
 //
 // Startup wires configuration, the SQLite metadata store, the blob storage
@@ -22,17 +22,17 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/user/better-docker-registry/internal/api"
-	"github.com/user/better-docker-registry/internal/auth"
-	"github.com/user/better-docker-registry/internal/config"
-	"github.com/user/better-docker-registry/internal/dashboard"
-	"github.com/user/better-docker-registry/internal/db"
-	"github.com/user/better-docker-registry/internal/gc"
-	"github.com/user/better-docker-registry/internal/middleware"
-	"github.com/user/better-docker-registry/internal/storage"
-	"github.com/user/better-docker-registry/internal/storage/filesystem"
-	"github.com/user/better-docker-registry/internal/storage/s3"
-	"github.com/user/better-docker-registry/site"
+	"github.com/BRAVO68WEB/wharf/internal/api"
+	"github.com/BRAVO68WEB/wharf/internal/auth"
+	"github.com/BRAVO68WEB/wharf/internal/config"
+	"github.com/BRAVO68WEB/wharf/internal/dashboard"
+	"github.com/BRAVO68WEB/wharf/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/gc"
+	"github.com/BRAVO68WEB/wharf/internal/middleware"
+	"github.com/BRAVO68WEB/wharf/internal/storage"
+	"github.com/BRAVO68WEB/wharf/internal/storage/filesystem"
+	"github.com/BRAVO68WEB/wharf/internal/storage/s3"
+	"github.com/BRAVO68WEB/wharf/site"
 )
 
 func main() {

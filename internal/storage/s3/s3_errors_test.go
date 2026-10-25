@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/storage"
+	"github.com/BRAVO68WEB/wharf/internal/storage"
 )
 
 // Given: a store that does not hold the digest

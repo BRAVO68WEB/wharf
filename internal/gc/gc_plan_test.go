@@ -4,8 +4,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/db"
-	"github.com/user/better-docker-registry/internal/gc"
+	"github.com/BRAVO68WEB/wharf/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/gc"
 )
 
 // Planning tests (dry-run listing, stats summary, corrupt-payload fallback).

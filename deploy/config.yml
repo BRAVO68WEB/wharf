@@ -29,7 +29,7 @@ auth:
     # without manual provisioning. Mount your own PEM to pin the key (and
     # keep previously issued tokens valid) across restarts.
     private_key_path: /var/lib/registry/jwt_private.pem
-    issuer: better-docker-registry
+    issuer: wharf
     service: registry.docker.io
     token_ttl: 15m
   session:

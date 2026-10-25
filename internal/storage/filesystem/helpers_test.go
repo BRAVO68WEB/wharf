@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/storage/filesystem"
+	"github.com/BRAVO68WEB/wharf/internal/storage/filesystem"
 )
 
 func digestOf(b []byte) string {

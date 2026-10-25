@@ -1,4 +1,4 @@
-# Sample configuration for better-docker-registry.
+# Sample configuration for Wharf.
 # Secrets are never stored here: only environment variable NAMES appear in
 # this file. Set the referenced variables in the process environment before
 # starting the registry.
@@ -42,7 +42,7 @@ auth:
   jwt:
     # PEM file with the RSA/ECDSA private key used to sign tokens.
     private_key_path: ./deploy/jwt_private.pem
-    issuer: better-docker-registry
+    issuer: wharf
     service: registry.docker.io
     token_ttl: 15m
   session:

@@ -11,10 +11,10 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/user/better-docker-registry/internal/api"
-	"github.com/user/better-docker-registry/internal/config"
-	"github.com/user/better-docker-registry/internal/db"
-	"github.com/user/better-docker-registry/internal/storage/filesystem"
+	"github.com/BRAVO68WEB/wharf/internal/api"
+	"github.com/BRAVO68WEB/wharf/internal/config"
+	"github.com/BRAVO68WEB/wharf/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/storage/filesystem"
 )
 
 func TestDashboardRoutes_spaDoesNotSwallowAPIOrV2(t *testing.T) {

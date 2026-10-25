@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/user/better-docker-registry/internal/gc"
-	"github.com/user/better-docker-registry/internal/storage"
+	"github.com/BRAVO68WEB/wharf/internal/gc"
+	"github.com/BRAVO68WEB/wharf/internal/storage"
 )
 
 // Task-19 hardening acceptance: active-upload protection, batch deletes, and

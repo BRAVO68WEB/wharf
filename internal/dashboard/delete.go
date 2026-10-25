@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/user/better-docker-registry/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/db"
 )
 
 // DeleteHandler removes tags and manifests for the JSON API. Blob bytes stay

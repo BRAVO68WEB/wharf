@@ -18,9 +18,9 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/user/better-docker-registry/internal/auth"
-	"github.com/user/better-docker-registry/internal/config"
-	"github.com/user/better-docker-registry/internal/middleware"
+	"github.com/BRAVO68WEB/wharf/internal/auth"
+	"github.com/BRAVO68WEB/wharf/internal/config"
+	"github.com/BRAVO68WEB/wharf/internal/middleware"
 )
 
 const (

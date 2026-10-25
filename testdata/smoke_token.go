@@ -25,9 +25,9 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/user/better-docker-registry/internal/auth"
-	"github.com/user/better-docker-registry/internal/config"
-	"github.com/user/better-docker-registry/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/auth"
+	"github.com/BRAVO68WEB/wharf/internal/config"
+	"github.com/BRAVO68WEB/wharf/internal/db"
 )
 
 const addr = "127.0.0.1:5061"
@@ -54,7 +54,7 @@ func main() {
 
 	signer, err := auth.LoadSigner(config.JWTConfig{
 		PrivateKeyPath: keyPath,
-		Issuer:         "better-docker-registry",
+		Issuer:         "wharf",
 		Service:        "registry.test.example",
 		TokenTTL:       config.Duration(15 * time.Minute),
 	})

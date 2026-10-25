@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/user/better-docker-registry/internal/auth"
-	"github.com/user/better-docker-registry/internal/repopath"
-	"github.com/user/better-docker-registry/internal/storage"
+	"github.com/BRAVO68WEB/wharf/internal/auth"
+	"github.com/BRAVO68WEB/wharf/internal/repopath"
+	"github.com/BRAVO68WEB/wharf/internal/storage"
 )
 
 // Access actions of the OCI token auth spec. Pull covers GET/HEAD; push

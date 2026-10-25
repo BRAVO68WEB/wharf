@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/user/better-docker-registry/internal/auth"
-	"github.com/user/better-docker-registry/internal/db"
+	"github.com/BRAVO68WEB/wharf/internal/auth"
+	"github.com/BRAVO68WEB/wharf/internal/db"
 )
 
 // Audit action names recorded in audit_log.action by the mutating dashboard

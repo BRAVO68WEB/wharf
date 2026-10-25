@@ -10,7 +10,7 @@ import (
 	"mime"
 	"strings"
 
-	"github.com/user/better-docker-registry/internal/storage"
+	"github.com/BRAVO68WEB/wharf/internal/storage"
 )
 
 // Manifest media types the registry accepts and serves. Docker schema1 is

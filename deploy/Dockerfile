@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:1
-# better-docker-registry production image.
+# Wharf production image.
 #
 # Build from the repository root (the build context must contain go.mod and
 # the source tree):
 #
-#   docker build -t bdr .
+#   docker build -t wharf .
 #
 # The final stage is distroless/static: no shell, no package manager, no OS
 # utilities — just the registry binary. The HEALTHCHECK must run real
@@ -35,7 +35,7 @@ RUN go mod download
 COPY . .
 # The ui stage's out/ replaces any stub index.html from the context.
 COPY --from=ui /src/site/out ./site/out
-RUN go build -tags embed -trimpath -ldflags="-s -w" -o /out/registry ./cmd/registry
+RUN go build -tags embed -trimpath -ldflags="-s -w" -o /out/wharf ./cmd/wharf
 
 # ---- stage 3: curl + musl closure + data directory for the final image -
 FROM alpine:3.22 AS runtime-deps
@@ -52,9 +52,9 @@ RUN apk add --no-cache curl \
 # ---- stage 4: minimal runtime -----------------------------------------
 FROM gcr.io/distroless/static-debian12:nonroot
 
-# Registry binary at /registry; curl and its libraries at their standard
+# Wharf binary at /wharf; curl and its libraries at their standard
 # paths so exec-form HEALTHCHECK lookup works.
-COPY --from=build /out/registry /registry
+COPY --from=build /out/wharf /wharf
 COPY --from=runtime-deps /runtime/ /
 
 # Default configuration (override with --config or a mounted file). The
@@ -71,5 +71,5 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD ["curl", "-f", "http://localhost:5000/healthz"]
 
-ENTRYPOINT ["/registry"]
+ENTRYPOINT ["/wharf"]
 CMD ["--config", "/etc/registry/config.yml"]

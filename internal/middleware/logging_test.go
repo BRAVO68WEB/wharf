@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/middleware"
+	"github.com/BRAVO68WEB/wharf/internal/middleware"
 )
 
 // Test_RequestLogger_when_InboundRequestID_then_Reused pins that a

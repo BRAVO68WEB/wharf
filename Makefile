@@ -1,5 +1,5 @@
 BIN_DIR := bin
-BINARY  := $(BIN_DIR)/registry
+BINARY  := $(BIN_DIR)/wharf
 CONFIG  ?= testdata/config.yml
 
 .PHONY: build site test lint run dev clean sqlc
@@ -9,7 +9,7 @@ CONFIG  ?= testdata/config.yml
 # proxies /dashboard/api to the registry (default http://[::1]:5000, override
 # with REGISTRY_DEV_PROXY). Start the registry before `make dev`.
 build: site
-	go build -tags embed -o $(BINARY) ./cmd/registry
+	go build -tags embed -o $(BINARY) ./cmd/wharf
 
 site:
 	cd site && pnpm install --frozen-lockfile && pnpm build

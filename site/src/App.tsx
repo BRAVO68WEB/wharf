@@ -22,7 +22,7 @@ const basename = import.meta.env.BASE_URL.replace(/\/$/, '')
 function Frame() {
   const session = useLoaderData() as Session | null
   useEffect(() => {
-    document.title = 'Registry'
+    document.title = 'Wharf'
   }, [])
   return (
     <Shell username={session?.username ?? null} admin={session?.admin ?? false}>

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/auth"
+	"github.com/BRAVO68WEB/wharf/internal/auth"
 )
 
 // Test_ParseScope_when_RepositoryScope_then_SplitsTypeNameActions is the

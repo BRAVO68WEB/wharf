@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/user/better-docker-registry/internal/storage"
+	"github.com/BRAVO68WEB/wharf/internal/storage"
 )
 
 // errorCodeInternal is the wire code of a failure with no OCI mapping.

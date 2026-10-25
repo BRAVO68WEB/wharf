@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/api"
-	"github.com/user/better-docker-registry/internal/storage"
+	"github.com/BRAVO68WEB/wharf/internal/api"
+	"github.com/BRAVO68WEB/wharf/internal/storage"
 )
 
 // rangeFixture serves a 1000-byte blob whose bytes spell "0123456789" ten

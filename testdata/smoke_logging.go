@@ -16,7 +16,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/user/better-docker-registry/internal/middleware"
+	"github.com/BRAVO68WEB/wharf/internal/middleware"
 )
 
 const logPath = "/tmp/bdr-smoke-request.log"

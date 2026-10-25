@@ -8,7 +8,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/user/better-docker-registry/internal/auth"
+	"github.com/BRAVO68WEB/wharf/internal/auth"
 )
 
 // Test_NewClaims_when_SubjectAndAccess_then_FillsRegisteredClaims pins the

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/user/better-docker-registry/internal/storage"
+	"github.com/BRAVO68WEB/wharf/internal/storage"
 )
 
 // Given: a store holding three blobs plus stray non-blob clutter
