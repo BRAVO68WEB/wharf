@@ -25,7 +25,9 @@ trap cleanup EXIT
 mkdir -p "$EVIDENCE"
 
 echo "== building registry =="
-make -C "$ROOT" build
+# The suite talks to /v2. The dashboard bundle is not part of the run,
+# and building it would pull Node into CI.
+( cd "$ROOT" && go build -o "$RUN_DIR/wharf" ./cmd/wharf )
 
 openssl genrsa -out "$RUN_DIR/jwt_private.pem" 2048 2>/dev/null
 
@@ -109,7 +111,7 @@ EOF
 fi
 
 echo "== starting registry ($BACKEND) on 127.0.0.1:$PORT =="
-"$ROOT/bin/wharf" --config "$RUN_DIR/config.yml" --addr "127.0.0.1:$PORT" \
+"$RUN_DIR/wharf" --config "$RUN_DIR/config.yml" --addr "127.0.0.1:$PORT" \
   >"$RUN_DIR/registry.log" 2>&1 &
 REGISTRY_PID=$!
 for _ in $(seq 1 50); do
@@ -127,12 +129,14 @@ echo "== running conformance suite against $BACKEND =="
 set +e
 (
   cd "$CONF_DIR/conformance"
-  OCI_ROOT_URL="http://127.0.0.1:$PORT" \
-  OCI_NAMESPACE=conformance/test \
-  OCI_TEST_PULL=1 \
-  OCI_TEST_PUSH=1 \
-  OCI_DELETE=1 \
-  OCI_CROSSMOUNT_NAMESPACE=conformance/other \
+  OCI_REGISTRY="127.0.0.1:$PORT" \
+  OCI_TLS=disabled \
+  OCI_REPO1=conformance/repo1 \
+  OCI_REPO2=conformance/repo2 \
+  OCI_VERSION=1.1 \
+  OCI_USERNAME= \
+  OCI_PASSWORD= \
+  OCI_LOG=warn \
   OCI_RESULTS_DIR="$RUN_DIR/results" \
   go run .
 ) 2>&1 | tee "$EVIDENCE/conformance-$BACKEND.log"
