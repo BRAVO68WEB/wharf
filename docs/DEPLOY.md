@@ -83,9 +83,11 @@ origin changes is in [Configuration](CONFIG.md).
 
 ## Release
 
-`dev` is the default branch. Day-to-day work lands there. `main` does
-not take a direct push, and it does not take a pull request from any
-branch except `dev`.
+`dev` is the default branch. Day-to-day work lands there. A pull
+request into `main` must come from `dev`. The check is in
+`.github/workflows/main-gate.yml`. GitHub will not block a direct
+push to `main` on this private repository until the repository is
+public or the account has GitHub Pro.
 
 A preview tag is cut from `dev`. A stable tag is cut from `main`,
 after that commit has been merged. Pushes that are not tags do not
