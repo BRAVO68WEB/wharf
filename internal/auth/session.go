@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -38,9 +39,10 @@ var (
 var sessionDummyPasswordHash = []byte("$2a$10$ECTTgEIJBf78DCKdGNaZLuUQ13v7LSGkiNQBIj5EdoT2X60sRoejC")
 
 type SessionUser struct {
-	ID       int64
-	Username string
-	IsAdmin  bool
+	ID        int64
+	Username  string
+	IsAdmin   bool
+	IsService bool
 }
 
 type Session struct {
@@ -93,30 +95,52 @@ func (m *SessionManager) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid login form", http.StatusBadRequest)
 		return
 	}
-	username := r.PostFormValue("username")
-	password := r.PostFormValue("password")
-	if username == "" || password == "" {
+	opened, status := m.startSession(r, r.PostFormValue("username"), r.PostFormValue("password"))
+	if status == http.StatusInternalServerError {
+		http.Error(w, "internal server error", status)
+		return
+	}
+	if status != http.StatusOK {
 		m.rejectLogin(w)
 		return
+	}
+	http.SetCookie(w, m.sessionCookie(opened.token, opened.expires))
+	http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
+}
+
+// openedSession is a session row that was just created. token is the raw
+// session token: the cookie signs it, and dashboard CSRF compares it to the
+// X-CSRF-Token header. The cookie is HttpOnly, so a browser UI can only learn
+// the token from a JSON response that returns it on purpose.
+type openedSession struct {
+	token    string
+	username string
+	admin    bool
+	expires  time.Time
+}
+
+// startSession checks credentials and inserts a session row. Empty
+// credentials, an unknown user, and a wrong password all return 401. The
+// dummy bcrypt compare keeps unknown users from answering faster than wrong
+// passwords. Callers choose the response shape (form redirect or JSON).
+func (m *SessionManager) startSession(r *http.Request, username, password string) (openedSession, int) {
+	if username == "" || password == "" {
+		return openedSession{}, http.StatusUnauthorized
 	}
 	user, err := m.q.GetUserByUsername(r.Context(), username)
 	if errors.Is(err, sql.ErrNoRows) {
 		_ = bcrypt.CompareHashAndPassword(sessionDummyPasswordHash, []byte(password))
-		m.rejectLogin(w)
-		return
+		return openedSession{}, http.StatusUnauthorized
 	}
 	if err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
+		return openedSession{}, http.StatusInternalServerError
 	}
-	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)) != nil {
-		m.rejectLogin(w)
-		return
+	if user.IsService || bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)) != nil {
+		return openedSession{}, http.StatusUnauthorized
 	}
 	token, err := newSessionToken()
 	if err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
+		return openedSession{}, http.StatusInternalServerError
 	}
 	expiresAt := time.Now().Add(m.ttl)
 	err = m.q.CreateSession(r.Context(), db.CreateSessionParams{
@@ -125,11 +149,9 @@ func (m *SessionManager) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt: expiresAt.Unix(),
 	})
 	if err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
+		return openedSession{}, http.StatusInternalServerError
 	}
-	http.SetCookie(w, m.sessionCookie(token, expiresAt))
-	http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
+	return openedSession{token: token, username: user.Username, admin: user.IsAdmin, expires: expiresAt}, http.StatusOK
 }
 
 // HandleLogout ends the session: deletes the row and clears the cookie.
@@ -137,14 +159,7 @@ func (m *SessionManager) HandleLogin(w http.ResponseWriter, r *http.Request) {
 // 303 followed by XHR swaps the login page into the calling element instead of
 // navigating the browser.
 func (m *SessionManager) HandleLogout(w http.ResponseWriter, r *http.Request) {
-	if c, err := r.Cookie(SessionCookieName); err == nil {
-		if token, ok := m.parseSessionCookie(c.Value); ok {
-			// Best effort: the cleared cookie is what ends the session for
-			// the client; a leftover row dies with its TTL at the latest.
-			_ = m.q.DeleteSession(r.Context(), token)
-		}
-	}
-	http.SetCookie(w, m.clearedSessionCookie())
+	m.endSession(w, r)
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Redirect", SessionLoginPath)
 		w.WriteHeader(http.StatusSeeOther)
@@ -193,9 +208,10 @@ func (m *SessionManager) RequireSession(next http.Handler) http.Handler {
 		sess := &Session{
 			Token: token,
 			User: SessionUser{
-				ID:       user.ID,
-				Username: user.Username,
-				IsAdmin:  user.IsAdmin,
+				ID:        user.ID,
+				Username:  user.Username,
+				IsAdmin:   user.IsAdmin,
+				IsService: user.IsService,
 			},
 			ExpiresAt: time.Unix(row.ExpiresAt, 0),
 		}
@@ -206,6 +222,12 @@ func (m *SessionManager) RequireSession(next http.Handler) http.Handler {
 func SessionFromContext(ctx context.Context) (*Session, bool) {
 	s, ok := ctx.Value(sessionContextKey{}).(*Session)
 	return s, ok
+}
+
+// ContextWithSession returns ctx carrying user. Tests and handlers use it
+// to know who is signed in.
+func ContextWithSession(ctx context.Context, user SessionUser) context.Context {
+	return context.WithValue(ctx, sessionContextKey{}, &Session{User: user})
 }
 
 func SessionUserFromContext(ctx context.Context) (SessionUser, bool) {
@@ -230,10 +252,28 @@ func (m *SessionManager) rejectLogin(w http.ResponseWriter) {
 	http.Error(w, "invalid username or password", http.StatusUnauthorized)
 }
 
-// denySession sends the client to the login page. HTMX requests get an
-// HX-Redirect: a 302 followed by XHR would swap the login page into the
-// calling element instead of navigating the browser.
+// endSession deletes the session row when the cookie still verifies and
+// clears the cookie either way. A leftover row dies with its TTL at the latest.
+func (m *SessionManager) endSession(w http.ResponseWriter, r *http.Request) {
+	if c, err := r.Cookie(SessionCookieName); err == nil {
+		if token, ok := m.parseSessionCookie(c.Value); ok {
+			_ = m.q.DeleteSession(r.Context(), token)
+		}
+	}
+	http.SetCookie(w, m.clearedSessionCookie())
+}
+
+// denySession sends the client to the login page. Dashboard JSON calls get
+// 401 JSON instead: a redirect would make fetch follow into HTML. HTMX
+// requests get an HX-Redirect: a 302 followed by XHR would swap the login
+// page into the calling element instead of navigating the browser.
 func (m *SessionManager) denySession(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/dashboard/api" || strings.HasPrefix(r.URL.Path, "/dashboard/api/") {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"unauthenticated"}` + "\n"))
+		return
+	}
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Redirect", SessionLoginPath)
 		w.WriteHeader(http.StatusUnauthorized)

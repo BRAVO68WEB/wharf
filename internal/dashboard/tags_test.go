@@ -26,7 +26,7 @@ func tagTestRouter(t *testing.T) (http.Handler, db.Querier) {
 
 	inner := chi.NewRouter()
 	dashboard.NewTagsHandler(q).Mount(inner)
-	dashboard.NewManifestsHandler(q).Mount(inner)
+	dashboard.NewManifestsHandler(q, newGCTestStore()).Mount(inner)
 
 	r := chi.NewRouter()
 	r.Mount("/dashboard/repos", dashboard.CollapseRepoName(inner))

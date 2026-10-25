@@ -9,6 +9,24 @@ import (
 	"context"
 )
 
+const countPublishedRepositories = `-- name: CountPublishedRepositories :one
+
+SELECT count(*) AS n
+FROM repositories r
+WHERE r.name LIKE ?1 ESCAPE '\'
+  AND r.published = 1
+`
+
+// Public catalog. published is a literal 1, not a bound flag, so a caller
+// cannot ask this query for private rows. The LIKE argument stays the only
+// parameter before LIMIT, clear of the ESCAPE quote.
+func (q *Queries) CountPublishedRepositories(ctx context.Context, pattern string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countPublishedRepositories, pattern)
+	var n int64
+	err := row.Scan(&n)
+	return n, err
+}
+
 const countRepositoriesMatching = `-- name: CountRepositoriesMatching :one
 SELECT count(*) AS n
 FROM repositories r
@@ -20,6 +38,198 @@ func (q *Queries) CountRepositoriesMatching(ctx context.Context, pattern string)
 	var n int64
 	err := row.Scan(&n)
 	return n, err
+}
+
+const getMountedRepository = `-- name: GetMountedRepository :one
+
+SELECT r.id,
+       r.name,
+       r.created_at,
+       COALESCE((SELECT MAX(t.updated_at) FROM tags t WHERE t.repo_id = r.id), r.created_at) AS updated_at,
+       (SELECT count(*) FROM tags t WHERE t.repo_id = r.id) AS tag_count,
+       (SELECT count(*) FROM manifests m WHERE m.repo_id = r.id) AS manifest_count,
+       CAST(COALESCE((
+           SELECT SUM(bm.size)
+           FROM blob_refs br
+           JOIN blob_metadata bm ON bm.digest = br.digest
+           WHERE br.repo_id = r.id
+       ), 0) AS INTEGER) AS size_bytes,
+       r.published
+FROM repositories r
+ORDER BY updated_at DESC, r.name ASC
+LIMIT 1
+`
+
+type GetMountedRepositoryRow struct {
+	ID            int64
+	Name          string
+	CreatedAt     int64
+	UpdatedAt     int64
+	TagCount      int64
+	ManifestCount int64
+	SizeBytes     int64
+	Published     bool
+}
+
+// Catalog rows for the embedded dashboard. updated_at is the newest tag
+// touch, or the repository's created_at when it has no tags. size_bytes is
+// the sum of blob_metadata sizes referenced by the repository (shared blobs
+// count once per repository). The mounted row is the first of this same
+// order; the handler skips it in the index with the offset, because a second
+// bound parameter after ESCAPE does not survive sqlc's parser.
+func (q *Queries) GetMountedRepository(ctx context.Context) (GetMountedRepositoryRow, error) {
+	row := q.db.QueryRowContext(ctx, getMountedRepository)
+	var i GetMountedRepositoryRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TagCount,
+		&i.ManifestCount,
+		&i.SizeBytes,
+		&i.Published,
+	)
+	return i, err
+}
+
+const listCatalogRepositories = `-- name: ListCatalogRepositories :many
+SELECT r.id,
+       r.name,
+       r.created_at,
+       COALESCE((SELECT MAX(t.updated_at) FROM tags t WHERE t.repo_id = r.id), r.created_at) AS updated_at,
+       (SELECT count(*) FROM tags t WHERE t.repo_id = r.id) AS tag_count,
+       (SELECT count(*) FROM manifests m WHERE m.repo_id = r.id) AS manifest_count,
+       CAST(COALESCE((
+           SELECT SUM(bm.size)
+           FROM blob_refs br
+           JOIN blob_metadata bm ON bm.digest = br.digest
+           WHERE br.repo_id = r.id
+       ), 0) AS INTEGER) AS size_bytes,
+       r.published
+FROM repositories r
+WHERE r.name LIKE ?1 ESCAPE '\'
+ORDER BY updated_at DESC, r.name ASC
+LIMIT ?3 OFFSET ?2
+`
+
+type ListCatalogRepositoriesParams struct {
+	Pattern string
+	Offset  int64
+	Limit   int64
+}
+
+type ListCatalogRepositoriesRow struct {
+	ID            int64
+	Name          string
+	CreatedAt     int64
+	UpdatedAt     int64
+	TagCount      int64
+	ManifestCount int64
+	SizeBytes     int64
+	Published     bool
+}
+
+func (q *Queries) ListCatalogRepositories(ctx context.Context, arg ListCatalogRepositoriesParams) ([]ListCatalogRepositoriesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCatalogRepositories, arg.Pattern, arg.Offset, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCatalogRepositoriesRow{}
+	for rows.Next() {
+		var i ListCatalogRepositoriesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.TagCount,
+			&i.ManifestCount,
+			&i.SizeBytes,
+			&i.Published,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPublishedRepositories = `-- name: ListPublishedRepositories :many
+SELECT r.id,
+       r.name,
+       r.created_at,
+       COALESCE((SELECT MAX(t.updated_at) FROM tags t WHERE t.repo_id = r.id), r.created_at) AS updated_at,
+       (SELECT count(*) FROM tags t WHERE t.repo_id = r.id) AS tag_count,
+       (SELECT count(*) FROM manifests m WHERE m.repo_id = r.id) AS manifest_count,
+       CAST(COALESCE((
+           SELECT SUM(bm.size)
+           FROM blob_refs br
+           JOIN blob_metadata bm ON bm.digest = br.digest
+           WHERE br.repo_id = r.id
+       ), 0) AS INTEGER) AS size_bytes,
+       r.published
+FROM repositories r
+WHERE r.name LIKE ?1 ESCAPE '\'
+  AND r.published = 1
+ORDER BY updated_at DESC, r.name ASC
+LIMIT ?3 OFFSET ?2
+`
+
+type ListPublishedRepositoriesParams struct {
+	Pattern string
+	Offset  int64
+	Limit   int64
+}
+
+type ListPublishedRepositoriesRow struct {
+	ID            int64
+	Name          string
+	CreatedAt     int64
+	UpdatedAt     int64
+	TagCount      int64
+	ManifestCount int64
+	SizeBytes     int64
+	Published     bool
+}
+
+func (q *Queries) ListPublishedRepositories(ctx context.Context, arg ListPublishedRepositoriesParams) ([]ListPublishedRepositoriesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPublishedRepositories, arg.Pattern, arg.Offset, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPublishedRepositoriesRow{}
+	for rows.Next() {
+		var i ListPublishedRepositoriesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.TagCount,
+			&i.ManifestCount,
+			&i.SizeBytes,
+			&i.Published,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listRepositoriesWithStats = `-- name: ListRepositoriesWithStats :many

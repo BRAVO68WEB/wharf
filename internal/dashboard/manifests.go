@@ -1,24 +1,31 @@
 package dashboard
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/user/better-docker-registry/internal/db"
+	"github.com/user/better-docker-registry/internal/storage"
 )
 
 // ManifestsHandler serves the manifest detail view for one repository.
+// store supplies the image config blob behind a manifest's config digest and
+// may be nil, which omits the container config section.
 type ManifestsHandler struct {
-	q db.Querier
+	q     db.Querier
+	store storage.Storage
 }
 
-// NewManifestsHandler returns a handler over the manifests recorded in q.
-func NewManifestsHandler(q db.Querier) *ManifestsHandler {
-	return &ManifestsHandler{q: q}
+// NewManifestsHandler returns a handler over the manifests recorded in q and
+// the blobs held in store.
+func NewManifestsHandler(q db.Querier, store storage.Storage) *ManifestsHandler {
+	return &ManifestsHandler{q: q, store: store}
 }
 
 // Mount registers the manifest detail route on r (a subrouter mounted at the
@@ -72,7 +79,7 @@ func (h *ManifestsHandler) showManifest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	d := BuildManifestDisplay(m)
+	d := BuildManifestDisplay(ctx, m, h.store)
 	if isHTMX(r) {
 		_ = ManifestDetail(name, d, csrf).Render(ctx, w)
 		return
@@ -88,6 +95,13 @@ type manifestDisplay struct {
 	Size         int64
 	ConfigDigest string
 	Layers       []layerDisplay
+	// ContainerConfig is the parsed content of the manifest's config blob.
+	// It is nil when the manifest has no config (an index) or the blob is
+	// not held.
+	ContainerConfig *containerConfigDisplay
+	// ImageLayers is the config blob's history, oldest first, with each
+	// non-empty step paired to its layer. Nil when the blob has no history.
+	ImageLayers []ImageLayer
 }
 
 // layerDisplay is one entry of a manifest's layer list (or, for an index,
@@ -114,10 +128,20 @@ type payloadDescriptor struct {
 	Size      int64  `json:"size"`
 }
 
-// buildManifestDisplay turns a stored manifest row into the structured view.
-// An image manifest contributes its config digest and layer list; an index
-// contributes its child-manifest list in the same layer table.
-func BuildManifestDisplay(m db.Manifest) manifestDisplay {
+// BuildManifestDisplay turns a stored manifest row into the structured view,
+// reading the image config blob from store when the manifest references one.
+func BuildManifestDisplay(ctx context.Context, m db.Manifest, store storage.Storage) manifestDisplay {
+	d := parseManifest(m)
+	if d.ConfigDigest != "" {
+		d.ContainerConfig, d.ImageLayers = loadImageDetails(ctx, store, d.ConfigDigest, d.Layers)
+	}
+	return d
+}
+
+// parseManifest decodes the manifest payload into the structured view: the
+// config digest and layer list of an image manifest, or the child-manifest
+// list of an index. It performs no I/O.
+func parseManifest(m db.Manifest) manifestDisplay {
 	d := manifestDisplay{
 		Digest:    m.Digest,
 		MediaType: m.MediaType,
@@ -146,4 +170,21 @@ func BuildManifestDisplay(m db.Manifest) manifestDisplay {
 		})
 	}
 	return d
+}
+
+// TruncateDigest shortens an OCI digest for table display: the algorithm and
+// 12 hex characters from each end survive, the middle collapses to an
+// ellipsis. Digests already short enough come back unchanged. The element
+// rendering it keeps the full digest on its title, so the exact content
+// address stays reachable without widening the column.
+func TruncateDigest(d string) string {
+	algo, encoded, ok := strings.Cut(d, ":")
+	if !ok {
+		return d
+	}
+	const keep = 12
+	if len(encoded) <= 2*keep {
+		return d
+	}
+	return algo + ":" + encoded[:keep] + "…" + encoded[len(encoded)-keep:]
 }

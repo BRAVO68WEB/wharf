@@ -1,5 +1,5 @@
 // Command registry serves the better-docker-registry OCI Distribution Spec
-// registry and its HTMX dashboard.
+// registry and the dashboard embedded in this binary.
 //
 // Startup wires configuration, the SQLite metadata store, the blob storage
 // backend, and the health endpoints. Shutdown is graceful: SIGINT/SIGTERM
@@ -32,6 +32,7 @@ import (
 	"github.com/user/better-docker-registry/internal/storage"
 	"github.com/user/better-docker-registry/internal/storage/filesystem"
 	"github.com/user/better-docker-registry/internal/storage/s3"
+	"github.com/user/better-docker-registry/site"
 )
 
 func main() {
@@ -82,7 +83,7 @@ func run(args []string) error {
 	}
 
 	health := api.NewHealth(sqlDB, store)
-	handler, err := newMux(health, store, db.New(sqlDB), cfg)
+	handler, err := newMux(ctx, health, store, db.New(sqlDB), cfg)
 	if err != nil {
 		return err
 	}
@@ -100,16 +101,18 @@ func run(args []string) error {
 }
 
 // newMux assembles the full route table: health probes, the /token auth
-// service, the HTMX dashboard behind session + CSRF, and the /v2 registry
-// API. /v2 is the fallback handler: everything the root router does not
-// claim goes to it (and 404s there), so no path is ever silently unrouted.
+// service, the dashboard JSON API behind session + CSRF, the embedded
+// dashboard files, and the /v2 registry API. /v2 is the fallback handler:
+// everything the root router does not claim goes to it (and 404s there), so
+// no path is ever silently unrouted. The SPA fallback never owns /v2 or
+// /dashboard/api.
 //
 // Mount order inside the dashboard group is the contract task 15 pinned:
 // RequireSession injects the session, WithSessionCSRF copies its token into
 // middleware.CSRF's context slot, then CSRF enforces it. Login stays outside
 // the group: it is the request that creates a session and cannot carry its
-// CSRF token yet.
-func newMux(health *api.Health, store storage.Storage, q db.Querier, cfg *config.Config) (http.Handler, error) {
+// CSRF token yet. GET /dashboard/login is a client route served by the SPA.
+func newMux(ctx context.Context, health *api.Health, store storage.Storage, q db.Querier, cfg *config.Config) (http.Handler, error) {
 	created, err := auth.EnsureRSAPrivateKey(cfg.Auth.JWT.PrivateKeyPath)
 	if err != nil {
 		return nil, err
@@ -139,27 +142,49 @@ func newMux(health *api.Health, store storage.Storage, q db.Querier, cfg *config
 		slog.Warn("auth.dev_anonymous: /v2/* is served WITHOUT bearer auth — dev only")
 	}
 
+	pullHost, err := cfg.Server.PullHost()
+	if err != nil {
+		return nil, err
+	}
+
 	root := chi.NewRouter()
 	root.Get("/healthz", health.Liveness)
 	root.Get("/readyz", health.Readiness)
 	// All methods: docker probes POST /token first; the handler answers the
 	// GET/POST contract and 405s everything else itself.
 	root.Handle("/token", http.HandlerFunc(token.ServeHTTP))
+	root.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/dashboard/", http.StatusFound)
+	})
 	root.Post(auth.SessionLoginPath, sessions.HandleLogin)
-	root.Get(auth.SessionLoginPath, sessions.HandleLoginPage)
-	root.Group(func(r chi.Router) {
-		r.Use(sessions.RequireSession)
-		r.Use(dashboard.WithSessionCSRF)
-		r.Use(middleware.CSRF)
-		dashboard.NewRepoHandler(q).Mount(r)
-		dashboard.NewGCHandler(q, store, lock, gc.WithBatchSize(cfg.GC.BatchSize)).Mount(r)
-		r.Post(auth.SessionLogoutPath, sessions.HandleLogout)
-		repos := chi.NewRouter()
-		dashboard.NewTagsHandler(q).Mount(repos)
-		dashboard.NewManifestsHandler(q).Mount(repos)
-		dashboard.NewDeleteHandler(q).Mount(repos)
-		dashboard.NewRetagHandler(q).Mount(repos)
-		r.Mount("/dashboard/repos", dashboard.CollapseRepoName(repos))
+	spa := site.Handler()
+	root.Route("/dashboard", func(dash chi.Router) {
+		dash.Post("/api/login", sessions.HandleLoginJSON)
+		apiHandler := dashboard.NewHTTPAPI(q, store, lock, gc.WithBatchSize(cfg.GC.BatchSize))
+		apiHandler.SetPullHost(pullHost)
+		apiHandler.SetGCInterval(cfg.GC.Interval.Duration())
+		gc.StartSchedule(ctx, cfg.GC.Interval.Duration(), func(ctx context.Context) error {
+			ran, err := apiHandler.CollectIfIdle(ctx)
+			if err == nil && !ran {
+				slog.Info("gc: scheduled run skipped, a collection is already running")
+			}
+			return err
+		})
+		apiHandler.MountPublic(dash)
+		dash.Group(func(authed chi.Router) {
+			authed.Use(sessions.RequireSession)
+			authed.Use(dashboard.WithSessionCSRF)
+			authed.Use(middleware.CSRF)
+			authed.Get("/api/session", sessions.HandleSessionJSON)
+			authed.Post("/api/logout", sessions.HandleLogoutJSON)
+			apiHandler.Mount(authed)
+		})
+		// GET and HEAD only. A catch-all that accepted POST would race the
+		// JSON routes for methods they do not register.
+		dash.Method(http.MethodGet, "/", spa)
+		dash.Method(http.MethodHead, "/", spa)
+		dash.Method(http.MethodGet, "/*", spa)
+		dash.Method(http.MethodHead, "/*", spa)
 	})
 	root.NotFound(v2.ServeHTTP)
 

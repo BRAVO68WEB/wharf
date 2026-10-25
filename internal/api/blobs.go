@@ -1,6 +1,7 @@
 package api
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/user/better-docker-registry/internal/auth"
+	"github.com/user/better-docker-registry/internal/db"
+	"github.com/user/better-docker-registry/internal/middleware"
 	"github.com/user/better-docker-registry/internal/storage"
 )
 
@@ -17,11 +21,13 @@ import (
 // GET, HEAD and DELETE /v2/{name}/blobs/{digest}.
 type BlobHandler struct {
 	store storage.Storage
+	q     db.Querier
 }
 
-// NewBlobHandler returns a handler over the blobs held in store.
-func NewBlobHandler(store storage.Storage) *BlobHandler {
-	return &BlobHandler{store: store}
+// NewBlobHandler returns a handler over the blobs held in store. q records
+// which repositories reference a blob. Anonymous pulls may read only those.
+func NewBlobHandler(store storage.Storage, q db.Querier) *BlobHandler {
+	return &BlobHandler{store: store, q: q}
 }
 
 // Mount registers the blob routes on r, a /v2 route tree. A repository name
@@ -47,6 +53,9 @@ func (h *BlobHandler) headBlob(w http.ResponseWriter, r *http.Request) {
 func (h *BlobHandler) serveBlob(w http.ResponseWriter, r *http.Request, sendBody bool) {
 	digest, ok := blobParams(w, r)
 	if !ok {
+		return
+	}
+	if !h.anonymousMayRead(w, r, digest) {
 		return
 	}
 
@@ -103,6 +112,36 @@ func (h *BlobHandler) serveBlob(w http.ResponseWriter, r *http.Request, sendBody
 	if _, err := io.CopyN(w, body, length); err != nil {
 		return // client vanished mid-stream
 	}
+}
+
+// anonymousMayRead reports whether an anonymous pull token may read this
+// blob through this repository. Signed-in requests are unchanged. A blob that
+// this repository does not reference is unknown, so a public repository is
+// not a window onto every blob in the store.
+func (h *BlobHandler) anonymousMayRead(w http.ResponseWriter, r *http.Request, digest string) bool {
+	subject, ok := middleware.AuthUser(r.Context())
+	if !ok || subject != auth.AnonymousSubject {
+		return true
+	}
+	repo, err := h.q.GetRepositoryByName(r.Context(), RepoName(r))
+	if errors.Is(err, sql.ErrNoRows) {
+		WriteError(w, storage.NewError(storage.ErrorCodeBlobUnknown, "blob unknown to registry"))
+		return false
+	}
+	if err != nil {
+		WriteError(w, internalFailure())
+		return false
+	}
+	_, err = h.q.GetBlobRef(r.Context(), db.GetBlobRefParams{Digest: digest, RepoID: repo.ID})
+	if errors.Is(err, sql.ErrNoRows) {
+		WriteError(w, storage.NewError(storage.ErrorCodeBlobUnknown, "blob unknown to registry"))
+		return false
+	}
+	if err != nil {
+		WriteError(w, internalFailure())
+		return false
+	}
+	return true
 }
 
 // deleteBlob removes a blob and answers 202 Accepted. Whether the blob is

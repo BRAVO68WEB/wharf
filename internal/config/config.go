@@ -3,7 +3,9 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"net/url"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -73,10 +75,31 @@ type ServerConfig struct {
 	// MaxUploadSize is the largest accepted blob upload in bytes.
 	// Zero means unlimited.
 	MaxUploadSize int64 `yaml:"max_upload_size"`
+	// PublicURL is the origin clients use to reach this registry, such as
+	// "https://registry.example.com". Empty means the dashboard must not
+	// invent a docker pull command.
+	PublicURL string `yaml:"public_url"`
 }
 
 // ListenAddr returns the listen address for the configured port.
 func (s ServerConfig) ListenAddr() string { return fmt.Sprintf(":%d", s.Port) }
+
+// PullHost is the host[:port] from PublicURL, with no scheme. An empty
+// PublicURL returns an empty host and no error. A URL with a path, query,
+// fragment, or userinfo is rejected.
+func (s ServerConfig) PullHost() (string, error) {
+	if s.PublicURL == "" {
+		return "", nil
+	}
+	u, err := url.Parse(s.PublicURL)
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil {
+		return "", errors.New("server.public_url must be an absolute http(s) URL with a host")
+	}
+	if (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
+		return "", errors.New("server.public_url must not include a path, query, or fragment")
+	}
+	return u.Host, nil
+}
 
 // StorageConfig selects and configures the blob storage backend.
 type StorageConfig struct {
@@ -150,6 +173,10 @@ type SessionConfig struct {
 type GCConfig struct {
 	// BatchSize is the number of blobs swept per GC batch.
 	BatchSize int `yaml:"batch_size"`
+	// Interval is how often a collection starts on its own. Zero, the
+	// default, leaves collection as a dashboard action only. A tick that
+	// finds a collection already running is skipped.
+	Interval Duration `yaml:"interval"`
 }
 
 // LoggingConfig configures structured logging.

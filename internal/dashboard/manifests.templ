@@ -1,5 +1,9 @@
 package dashboard
 
+import (
+	"strings"
+)
+
 // ManifestDetail is the structured manifest detail fragment HTMX swaps into
 // the #manifest-detail container. The raw JSON payload is never displayed.
 // csrfToken is the session CSRF token the delete button renders into its
@@ -19,6 +23,7 @@ templ ManifestDetail(repoName string, d manifestDisplay, csrfToken string) {
 				<dd><code>{ d.ConfigDigest }</code></dd>
 			}
 		</dl>
+		@ImageLayersSection(d.ImageLayers)
 		if len(d.Layers) > 0 {
 			<h3>Layers</h3>
 			<table>
@@ -38,17 +43,128 @@ templ ManifestDetail(repoName string, d manifestDisplay, csrfToken string) {
 		} else {
 			<p data-testid="empty-state">No layers.</p>
 		}
+		@ContainerConfigSection(d.ContainerConfig)
 		<p>@DeleteManifestButton(repoName, d.Digest, csrfToken)</p>
 	</div>
 }
 
-// LayerRow is one row of the manifest's layer table.
+// ImageLayersSection lists each history step with its full command and the
+// size of the layer it produced. Commands wrap; they are never clipped or
+// collapsed to an ellipsis. Empty steps stay in the list at 0 B so the
+// history is complete.
+templ ImageLayersSection(layers []ImageLayer) {
+	if len(layers) > 0 {
+		<section data-testid="image-layers">
+			<h3>Image Layers</h3>
+			<style>
+				.image-layers {
+					list-style: decimal;
+					margin: 0;
+					padding-left: 1.5rem;
+				}
+				.image-layers li {
+					margin: 0;
+					padding: 0.65rem 0;
+					border-bottom: 1px solid rgba(127, 127, 127, 0.3);
+				}
+				.image-layer-row {
+					display: flex;
+					gap: 1rem;
+					align-items: flex-start;
+				}
+				.image-layer-cmd {
+					flex: 1 1 auto;
+					min-width: 0;
+					margin: 0;
+					white-space: pre-wrap;
+					overflow-wrap: anywhere;
+					font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+					font-size: 0.875rem;
+				}
+				.image-layer-size {
+					flex: none;
+					font-weight: 600;
+					font-variant-numeric: tabular-nums;
+					white-space: nowrap;
+				}
+			</style>
+			<ol class="image-layers">
+				for _, l := range layers {
+					<li data-testid="image-layer">
+						<div class="image-layer-row">
+							<pre class="image-layer-cmd"><code>{ l.Command }</code></pre>
+							<span class="image-layer-size">{ FormatBytes(l.Size) }</span>
+						</div>
+					</li>
+				}
+			</ol>
+		</section>
+	}
+}
+
+// LayerRow is one row of the manifest's layer table. The digest cell shows
+// the shortened form and keeps the exact content address on its title.
 templ LayerRow(l layerDisplay) {
 	<tr data-testid="layer-row">
-		<td><code>{ l.Digest }</code></td>
+		<td><code title={ l.Digest }>{ TruncateDigest(l.Digest) }</code></td>
 		<td>{ FormatBytes(l.Size) }</td>
 		<td>{ l.MediaType }</td>
 	</tr>
+}
+
+// ContainerConfigSection is the structured container config of the image:
+// how the container starts (CMD, ENTRYPOINT), what it is given (ENV,
+// WorkingDir, User) and what it listens on (ExposedPorts). Empty fields are
+// omitted, and so is the whole section when there is no config blob to read.
+// The raw config JSON is never rendered.
+templ ContainerConfigSection(c *containerConfigDisplay) {
+	if c != nil {
+		<section data-testid="container-config">
+			<h3>Container Config</h3>
+			<dl>
+				if len(c.Cmd) > 0 {
+					<dt>CMD</dt>
+					<dd>
+						<pre><code data-testid="config-cmd">{ strings.Join(c.Cmd, "\n") }</code></pre>
+					</dd>
+				}
+				if len(c.Entrypoint) > 0 {
+					<dt>ENTRYPOINT</dt>
+					<dd>
+						<pre><code data-testid="config-entrypoint">{ strings.Join(c.Entrypoint, "\n") }</code></pre>
+					</dd>
+				}
+				if len(c.Env) > 0 {
+					<dt>ENV</dt>
+					<dd>
+						<ul data-testid="config-env">
+							for _, e := range c.Env {
+								<li><code>{ e }</code></li>
+							}
+						</ul>
+					</dd>
+				}
+				if c.WorkingDir != "" {
+					<dt>WorkingDir</dt>
+					<dd data-testid="config-workingdir"><code>{ c.WorkingDir }</code></dd>
+				}
+				if len(c.ExposedPorts) > 0 {
+					<dt>ExposedPorts</dt>
+					<dd>
+						<ul data-testid="config-exposedports">
+							for _, p := range c.ExposedPorts {
+								<li><code>{ p }</code></li>
+							}
+						</ul>
+					</dd>
+				}
+				if c.User != "" {
+					<dt>User</dt>
+					<dd data-testid="config-user"><code>{ c.User }</code></dd>
+				}
+			</dl>
+		</section>
+	}
 }
 
 // ManifestError is the error fragment shown when a manifest payload cannot

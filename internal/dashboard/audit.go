@@ -17,6 +17,8 @@ const (
 	auditActionTagDelete      = "delete_tag"
 	auditActionManifestDelete = "delete_manifest"
 	auditActionTagRetag       = "retag_tag"
+	auditActionPublish        = "publish_repository"
+	auditActionUnpublish      = "unpublish_repository"
 )
 
 // audit records one completed mutation in audit_log. target is a docker-style

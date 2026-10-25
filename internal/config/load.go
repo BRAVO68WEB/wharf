@@ -73,6 +73,9 @@ func (cfg *Config) Validate() error {
 	if cfg.Server.MaxUploadSize < 0 {
 		return errors.New("server.max_upload_size must not be negative")
 	}
+	if _, err := cfg.Server.PullHost(); err != nil {
+		return err
+	}
 
 	switch cfg.Storage.Type {
 	case StorageFilesystem:
@@ -121,6 +124,9 @@ func (cfg *Config) Validate() error {
 
 	if cfg.GC.BatchSize <= 0 {
 		return errors.New("gc.batch_size must be greater than zero")
+	}
+	if cfg.GC.Interval < 0 {
+		return errors.New("gc.interval must not be negative")
 	}
 
 	switch cfg.Logging.Level {

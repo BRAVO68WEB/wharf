@@ -76,22 +76,23 @@ func NewTokenHandler(users db.Querier, signer *Signer) *TokenHandler {
 // ServeHTTP answers GET/POST /token?service=<svc>&scope=repository:<name>:<actions>.
 // POST is served with the same contract as GET: Docker probes the token
 // endpoint with POST before GET. Form-encoded POST bodies are accepted
-// alongside query parameters (OAuth2 token endpoint shape). Basic credentials
-// are required — v1 issues no anonymous tokens — and are checked before any
-// query parameter is acted on. The scope parameter may be repeated; each
-// becomes one access entry. Empty scope parameters (docker sends
-// "scope=&scope=repository:...") are skipped. A missing scope yields a token
-// with an empty access array (docker login only checks credentials).
+// alongside query parameters (OAuth2 token endpoint shape). When credentials
+// are present they are checked before any query parameter is acted on. With
+// no credentials, a token is issued only when every scope is pull on a
+// published repository, which is what lets docker pull a public image. A
+// missing scope, a push scope, or an unpublished repository is refused.
+// Empty scope parameters (docker sends "scope=&scope=repository:...") are
+// skipped. A signed-in request with no scope yields a token with an empty
+// access array (docker login only checks credentials).
 func (h *TokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodGet+", "+http.MethodPost)
 		writeTokenError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	username, password, ok := r.BasicAuth()
-	if !ok || h.checkCredentials(r.Context(), username, password) != nil {
-		w.Header().Set("WWW-Authenticate", fmt.Sprintf("Basic realm=%q", h.signer.cfg.Service))
-		writeTokenError(w, http.StatusUnauthorized, "invalid credentials")
+	username, password, hasBasic := r.BasicAuth()
+	if hasBasic && h.checkCredentials(r.Context(), username, password) != nil {
+		h.refuseToken(w)
 		return
 	}
 	values := r.URL.Query()
@@ -125,13 +126,55 @@ func (h *TokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		access = append(access, entry)
 	}
-	claims := h.signer.NewClaims(username, access)
+	subject := username
+	if !hasBasic {
+		if err := h.allowAnonymousPull(r.Context(), access); err != nil {
+			if errors.Is(err, errInvalidCredentials) {
+				h.refuseToken(w)
+				return
+			}
+			writeTokenError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+		subject = AnonymousSubject
+	}
+	claims := h.signer.NewClaims(subject, access)
 	token, err := h.signer.Sign(claims)
 	if err != nil {
 		writeTokenError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 	h.writeToken(w, token, claims)
+}
+
+// AnonymousSubject is the JWT subject of a token issued with no credentials.
+// It grants only the pull scopes named in that token, never the catalog.
+const AnonymousSubject = "anonymous"
+
+func (h *TokenHandler) refuseToken(w http.ResponseWriter) {
+	w.Header().Set("WWW-Authenticate", fmt.Sprintf("Basic realm=%q", h.signer.cfg.Service))
+	writeTokenError(w, http.StatusUnauthorized, "invalid credentials")
+}
+
+// allowAnonymousPull accepts a credential-less token request only when every
+// scope is exactly pull and every named repository is published.
+func (h *TokenHandler) allowAnonymousPull(ctx context.Context, access []AccessEntry) error {
+	if len(access) == 0 {
+		return errInvalidCredentials
+	}
+	for _, entry := range access {
+		if len(entry.Actions) != 1 || entry.Actions[0] != "pull" {
+			return errInvalidCredentials
+		}
+		repo, err := h.users.GetRepositoryByName(ctx, entry.Name)
+		if errors.Is(err, sql.ErrNoRows) || (err == nil && !repo.Published) {
+			return errInvalidCredentials
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // checkCredentials verifies username/password against the users table.
@@ -146,10 +189,17 @@ func (h *TokenHandler) checkCredentials(ctx context.Context, username, password 
 	if err != nil {
 		return err
 	}
-	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)) != nil {
+	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)) == nil && !user.IsService {
+		return nil
+	}
+	_, err = h.users.GetActiveAccessToken(ctx, db.GetActiveAccessTokenParams{
+		UserID:    user.ID,
+		TokenHash: HashAccessToken(password),
+	})
+	if errors.Is(err, sql.ErrNoRows) {
 		return errInvalidCredentials
 	}
-	return nil
+	return err
 }
 
 // writeToken writes the token response contract of the token auth spec:

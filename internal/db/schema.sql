@@ -13,7 +13,8 @@
 CREATE TABLE IF NOT EXISTS repositories (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     name       TEXT    NOT NULL UNIQUE,
-    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    published  INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS manifests (
@@ -64,7 +65,17 @@ CREATE TABLE IF NOT EXISTS users (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     username      TEXT    NOT NULL UNIQUE,
     password_hash TEXT    NOT NULL,
-    is_admin      INTEGER NOT NULL DEFAULT 0
+    is_admin      INTEGER NOT NULL DEFAULT 0,
+    is_service    INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS access_tokens (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    name       TEXT    NOT NULL DEFAULT '',
+    token_hash TEXT    NOT NULL UNIQUE,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    revoked_at INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -87,5 +98,6 @@ CREATE INDEX IF NOT EXISTS idx_blob_refs_repo ON blob_refs (repo_id);
 CREATE INDEX IF NOT EXISTS idx_uploads_expires ON uploads (expires_at);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions (expires_at);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id);
+CREATE INDEX IF NOT EXISTS idx_access_tokens_user ON access_tokens (user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_target ON audit_log (target, id);
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log (created_at);

@@ -41,8 +41,25 @@ func TestQueries_RepositoryRoundtrip(t *testing.T) {
 	if again.ID != created.ID {
 		t.Errorf("upsert id = %d, want %d", again.ID, created.ID)
 	}
+	if created.Published {
+		t.Error("new repository is published")
+	}
+	n, err := q.SetRepositoryPublished(ctx, SetRepositoryPublishedParams{Published: true, Name: "library/nginx"})
+	if err != nil {
+		t.Fatalf("SetRepositoryPublished: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("SetRepositoryPublished rows = %d, want 1", n)
+	}
+	kept, err := q.CreateRepository(ctx, "library/nginx")
+	if err != nil {
+		t.Fatalf("CreateRepository after publish: %v", err)
+	}
+	if !kept.Published {
+		t.Error("push cleared the published flag")
+	}
 
-	n, err := q.CountRepositories(ctx)
+	n, err = q.CountRepositories(ctx)
 	if err != nil {
 		t.Fatalf("CountRepositories: %v", err)
 	}

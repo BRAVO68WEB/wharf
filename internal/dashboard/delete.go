@@ -41,73 +41,95 @@ func (h *DeleteHandler) Mount(r chi.Router) {
 // route's job.
 func (h *DeleteHandler) deleteTag(w http.ResponseWriter, r *http.Request) {
 	name, tag := RepoPathParam(r), chi.URLParam(r, "tag")
-	repo, ok := h.resolveRepo(w, r, name)
-	if !ok {
+	if code := h.removeTag(r, name, tag); code != http.StatusNoContent {
+		writeStatus(w, r, code)
 		return
+	}
+	h.respond(w, r, name)
+}
+
+// removeTag unmaps one tag and records the audit entry. It does not write a
+// response: the HTML handler redirects and the JSON handler returns 204.
+func (h *DeleteHandler) removeTag(r *http.Request, name, tag string) int {
+	repo, code := h.lookupRepo(r, name)
+	if code != 0 {
+		return code
 	}
 	ctx := r.Context()
 	if _, err := h.q.GetTag(ctx, db.GetTagParams{RepoID: repo.ID, Name: tag}); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			http.NotFound(w, r)
-			return
+			return http.StatusNotFound
 		}
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
+		return http.StatusInternalServerError
 	}
 	if err := h.q.DeleteTag(ctx, db.DeleteTagParams{RepoID: repo.ID, Name: tag}); err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
+		return http.StatusInternalServerError
 	}
 	audit(h.q, r, auditActionTagDelete, name+":"+tag)
-	h.respond(w, r, name)
+	return http.StatusNoContent
 }
 
 // deleteManifest removes one manifest and every tag pointing at it. Blob
 // content stays in storage for GC to reclaim once nothing references it.
 func (h *DeleteHandler) deleteManifest(w http.ResponseWriter, r *http.Request) {
 	name, digest := RepoPathParam(r), chi.URLParam(r, "digest")
-	repo, ok := h.resolveRepo(w, r, name)
-	if !ok {
+	if code := h.removeManifest(r, name, digest); code != http.StatusNoContent {
+		writeStatus(w, r, code)
 		return
+	}
+	h.respond(w, r, name)
+}
+
+// removeManifest deletes one manifest and every tag pointing at it. Blob
+// bytes stay for garbage collection. Like removeTag, it leaves the response
+// to the caller.
+func (h *DeleteHandler) removeManifest(r *http.Request, name, digest string) int {
+	repo, code := h.lookupRepo(r, name)
+	if code != 0 {
+		return code
 	}
 	ctx := r.Context()
 	if _, err := h.q.GetManifest(ctx, db.GetManifestParams{RepoID: repo.ID, Digest: digest}); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			http.NotFound(w, r)
-			return
+			return http.StatusNotFound
 		}
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
+		return http.StatusInternalServerError
 	}
 	// Tags first: tags.manifest_digest references the manifest row.
 	if err := h.q.DeleteTagsByManifest(ctx, db.DeleteTagsByManifestParams{
 		RepoID:         repo.ID,
 		ManifestDigest: digest,
 	}); err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
+		return http.StatusInternalServerError
 	}
 	if err := h.q.DeleteManifest(ctx, db.DeleteManifestParams{RepoID: repo.ID, Digest: digest}); err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
+		return http.StatusInternalServerError
 	}
 	audit(h.q, r, auditActionManifestDelete, name+"@"+digest)
-	h.respond(w, r, name)
+	return http.StatusNoContent
 }
 
-// resolveRepo looks up the repository named by the request, answering 404 or
-// 500 itself when it cannot be resolved.
-func (h *DeleteHandler) resolveRepo(w http.ResponseWriter, r *http.Request, name string) (db.Repository, bool) {
+// lookupRepo resolves a repository without writing a response. code is 0 when
+// the repository exists.
+func (h *DeleteHandler) lookupRepo(r *http.Request, name string) (db.Repository, int) {
 	repo, err := h.q.GetRepositoryByName(r.Context(), name)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		http.NotFound(w, r)
-		return db.Repository{}, false
+		return db.Repository{}, http.StatusNotFound
 	case err != nil:
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return db.Repository{}, false
+		return db.Repository{}, http.StatusInternalServerError
 	}
-	return repo, true
+	return repo, 0
+}
+
+// writeStatus is the HTML delete handler's answer for a remove that did not
+// succeed. The JSON API maps the same codes itself.
+func writeStatus(w http.ResponseWriter, r *http.Request, code int) {
+	if code == http.StatusNotFound {
+		http.NotFound(w, r)
+		return
+	}
+	http.Error(w, "internal server error", code)
 }
 
 // respond answers a completed delete. HTMX callers get an empty 200 — the

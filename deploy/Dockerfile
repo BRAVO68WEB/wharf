@@ -10,10 +10,21 @@
 # utilities — just the registry binary. The HEALTHCHECK must run real
 # `curl -f http://localhost:5000/healthz`, and distroless ships no curl, so
 # the runtime-deps stage copies Alpine's curl together with its shared-
-# library closure (including the musl loader) into the final image. Everything
-# else stays out.
+# library closure (including the musl loader) into the final image. The
+# dashboard is compiled in the ui stage and embedded in the registry
+# binary. There is no frontend process at runtime. Everything else stays
+# out.
 
-# ---- stage 1: build the static registry binary ------------------------
+# ---- stage 1: compile the dashboard into site/out ---------------------
+FROM node:24-alpine AS ui
+WORKDIR /src/site
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+COPY site/package.json site/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY site/ ./
+RUN pnpm build
+
+# ---- stage 2: build the static registry binary ------------------------
 FROM golang:1.26-alpine AS build
 WORKDIR /src
 ENV CGO_ENABLED=0
@@ -22,9 +33,11 @@ ENV CGO_ENABLED=0
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -trimpath -ldflags="-s -w" -o /out/registry ./cmd/registry
+# The ui stage's out/ replaces any stub index.html from the context.
+COPY --from=ui /src/site/out ./site/out
+RUN go build -tags embed -trimpath -ldflags="-s -w" -o /out/registry ./cmd/registry
 
-# ---- stage 2: curl + musl closure + data directory for the final image -
+# ---- stage 3: curl + musl closure + data directory for the final image -
 FROM alpine:3.22 AS runtime-deps
 RUN apk add --no-cache curl \
     && mkdir -p /runtime/usr/bin /runtime/etc/registry /runtime/var/lib/registry \
@@ -36,7 +49,7 @@ RUN apk add --no-cache curl \
        done \
     && chown -R 65532:65532 /runtime/var/lib/registry
 
-# ---- stage 3: minimal runtime -----------------------------------------
+# ---- stage 4: minimal runtime -----------------------------------------
 FROM gcr.io/distroless/static-debian12:nonroot
 
 # Registry binary at /registry; curl and its libraries at their standard

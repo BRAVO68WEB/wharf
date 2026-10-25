@@ -92,6 +92,12 @@ func BearerAuth(signer *auth.Signer, service string) func(http.Handler) http.Han
 					w.WriteHeader(http.StatusOK)
 					return
 				}
+				// An anonymous pull token must not open the catalog or any
+				// other route that is not tied to one repository.
+				if claims.Subject == auth.AnonymousSubject {
+					writeAuthError(w, http.StatusForbidden, storage.NewError(storage.ErrorCodeDenied, authMsgDenied))
+					return
+				}
 				next.ServeHTTP(w, r)
 				return
 			}

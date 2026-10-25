@@ -11,6 +11,9 @@ server:
   write_timeout: 0s
   # Bytes. 0 = unlimited.
   max_upload_size: 0
+  # Origin clients use. Empty means the dashboard shows no docker pull line.
+  # Example: https://registry.example.com
+  public_url: ""
 
 storage:
   # "filesystem" or "s3"
@@ -49,6 +52,8 @@ auth:
 
 gc:
   batch_size: 256
+  # Zero leaves collection as a dashboard action. Example: 24h
+  interval: 0s
 
 logging:
   level: info

@@ -126,8 +126,9 @@ func Test_TokenEndpoint_when_UnknownUser_then_SameRejectionAsBadPassword(t *test
 	}
 }
 
-// Test_TokenEndpoint_when_NoCredentials_then_401WithChallenge pins that the
-// token endpoint requires Basic credentials (v1 issues no anonymous tokens).
+// Test_TokenEndpoint_when_NoCredentials_then_401WithChallenge pins that a
+// request with no pull scope still requires credentials. Anonymous tokens
+// exist only for pull of a published repository.
 func Test_TokenEndpoint_when_NoCredentials_then_401WithChallenge(t *testing.T) {
 	// Given: the fixture
 	env := newJWTEnv(t)

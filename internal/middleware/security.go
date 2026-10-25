@@ -5,15 +5,12 @@ import (
 	"strings"
 )
 
-// DashboardCSP is the Content-Security-Policy for dashboard routes. templ
-// renders HTML server-side; HTMX is loaded from unpkg (the plan pins the
-// <script src="https://unpkg.com/htmx.org@1.9.10"> shell), so script-src
-// allows that origin and nothing else. 'unsafe-inline' is granted to styles
-// only: templ component output relies on inline style attributes and the
-// layout's own <style> block.
+// DashboardCSP is the Content-Security-Policy for every route outside /v2.
+// The dashboard is a same-origin Vite bundle: scripts, styles, and fonts all
+// come from this process. Nothing else may load.
 const DashboardCSP = "default-src 'self'; " +
-	"script-src 'self' https://unpkg.com; " +
-	"style-src 'self' 'unsafe-inline'; " +
+	"script-src 'self'; " +
+	"style-src 'self'; " +
 	"img-src 'self' data:; " +
 	"font-src 'self'; " +
 	"connect-src 'self'; " +

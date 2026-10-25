@@ -28,7 +28,7 @@ func retagTestRouter(t *testing.T) (http.Handler, db.Querier) {
 	q := repoTestDB(t)
 	inner := chi.NewRouter()
 	dashboard.NewTagsHandler(q).Mount(inner)
-	dashboard.NewManifestsHandler(q).Mount(inner)
+	dashboard.NewManifestsHandler(q, newGCTestStore()).Mount(inner)
 	dashboard.NewDeleteHandler(q).Mount(inner)
 	dashboard.NewRetagHandler(q).Mount(inner)
 	r := chi.NewRouter()

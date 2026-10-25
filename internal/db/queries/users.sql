@@ -3,22 +3,22 @@
 -- mapped to Go bool by the sqlc override in sqlc.yaml.
 
 -- name: CreateUser :one
-INSERT INTO users (username, password_hash, is_admin)
-VALUES (sqlc.arg('username'), sqlc.arg('password_hash'), sqlc.arg('is_admin'))
-RETURNING id, username, password_hash, is_admin;
+INSERT INTO users (username, password_hash, is_admin, is_service)
+VALUES (sqlc.arg('username'), sqlc.arg('password_hash'), sqlc.arg('is_admin'), sqlc.arg('is_service'))
+RETURNING id, username, password_hash, is_admin, is_service;
 
 -- name: GetUserByID :one
-SELECT id, username, password_hash, is_admin
+SELECT id, username, password_hash, is_admin, is_service
 FROM users
 WHERE id = sqlc.arg('id');
 
 -- name: GetUserByUsername :one
-SELECT id, username, password_hash, is_admin
+SELECT id, username, password_hash, is_admin, is_service
 FROM users
 WHERE username = sqlc.arg('username');
 
 -- name: ListUsers :many
-SELECT id, username, password_hash, is_admin
+SELECT id, username, password_hash, is_admin, is_service
 FROM users
 ORDER BY username;
 

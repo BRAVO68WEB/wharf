@@ -84,8 +84,9 @@ func boolStr(v int64) string {
 }
 
 // wantedTables is the full schema the plan requires. Any table added here
-// must also exist in schema.sql AND migrations/000001_init.sql.
+// must also exist in schema.sql and in the migration chain.
 var wantedTables = []string{
+	"access_tokens",
 	"audit_log",
 	"blob_metadata",
 	"blob_refs",

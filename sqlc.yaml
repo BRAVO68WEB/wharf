@@ -24,3 +24,7 @@ sql:
           # boundary so callers never see the storage encoding.
           - column: "users.is_admin"
             go_type: "bool"
+          - column: "users.is_service"
+            go_type: "bool"
+          - column: "repositories.published"
+            go_type: "bool"

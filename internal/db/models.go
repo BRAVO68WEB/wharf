@@ -8,6 +8,15 @@ import (
 	"database/sql"
 )
 
+type AccessToken struct {
+	ID        int64
+	UserID    int64
+	Name      string
+	TokenHash string
+	CreatedAt int64
+	RevokedAt sql.NullInt64
+}
+
 type AuditLog struct {
 	ID        int64
 	Action    string
@@ -42,6 +51,7 @@ type Repository struct {
 	ID        int64
 	Name      string
 	CreatedAt int64
+	Published bool
 }
 
 type Session struct {
@@ -73,4 +83,5 @@ type User struct {
 	Username     string
 	PasswordHash string
 	IsAdmin      bool
+	IsService    bool
 }

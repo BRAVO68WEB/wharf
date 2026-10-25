@@ -103,59 +103,62 @@ func (h *RetagHandler) retag(w http.ResponseWriter, r *http.Request) {
 	}
 	newTag := strings.TrimSpace(r.FormValue("new_tag"))
 	targetName := strings.TrimSpace(r.FormValue("target_repo"))
+	dst, status, msg := h.copyTag(r, name, tag, targetName, newTag)
+	switch status {
+	case http.StatusOK:
+		h.retagRespond(w, r, dst)
+	case http.StatusBadRequest:
+		h.retagFormError(w, r, retagFormData{
+			RepoName:   name,
+			TagName:    tag,
+			TargetRepo: targetNameOr(targetName, name),
+			CSRFToken:  sessionCSRF(r),
+			Error:      msg,
+		})
+	case http.StatusNotFound:
+		http.NotFound(w, r)
+	default:
+		http.Error(w, "internal server error", status)
+	}
+}
+
+// copyTag copies the manifest behind tag onto newTag in targetName. An empty
+// targetName means the source repository. The source tag is never touched.
+// status is 200, 400, 404, or 500. On 400, msg is the validation text.
+func (h *RetagHandler) copyTag(r *http.Request, name, tag, targetName, newTag string) (string, int, string) {
 	if targetName == "" {
-		targetName = name // form default: same repository
+		targetName = name
 	}
 	if !api.ValidTag(newTag) {
-		h.retagFormError(w, r, retagFormData{
-			RepoName:   name,
-			TagName:    tag,
-			TargetRepo: targetName,
-			CSRFToken:  sessionCSRF(r),
-			Error:      "new tag must match [A-Za-z0-9_][A-Za-z0-9_.-]{0,127}",
-		})
-		return
+		return "", http.StatusBadRequest, "new tag must match [A-Za-z0-9_][A-Za-z0-9_.-]{0,127}"
 	}
 	if !api.ValidName(targetName) {
-		h.retagFormError(w, r, retagFormData{
-			RepoName:   name,
-			TagName:    tag,
-			TargetRepo: targetName,
-			CSRFToken:  sessionCSRF(r),
-			Error:      "target repository is not a valid repository name",
-		})
-		return
+		return "", http.StatusBadRequest, "target repository is not a valid repository name"
 	}
 
 	ctx := r.Context()
 	src, err := h.q.GetRepositoryByName(ctx, name)
 	if errors.Is(err, sql.ErrNoRows) {
-		http.NotFound(w, r)
-		return
+		return "", http.StatusNotFound, ""
 	}
 	if err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
+		return "", http.StatusInternalServerError, ""
 	}
 	manifest, err := h.q.GetManifestByTag(ctx, db.GetManifestByTagParams{RepoID: src.ID, Name: tag})
 	if errors.Is(err, sql.ErrNoRows) {
-		http.NotFound(w, r)
-		return
+		return "", http.StatusNotFound, ""
 	}
 	if err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
+		return "", http.StatusInternalServerError, ""
 	}
 
 	dst, err := h.targetRepo(ctx, targetName)
 	if err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
+		return "", http.StatusInternalServerError, ""
 	}
 	copier := manifestCopier{q: h.q, dst: dst, seen: map[string]bool{}}
 	if err := copier.copyInto(ctx, manifest); err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
+		return "", http.StatusInternalServerError, ""
 	}
 	if err := h.q.SetTag(ctx, db.SetTagParams{
 		RepoID:         dst.ID,
@@ -163,11 +166,17 @@ func (h *RetagHandler) retag(w http.ResponseWriter, r *http.Request) {
 		ManifestDigest: manifest.Digest,
 		UpdatedAt:      time.Now().Unix(),
 	}); err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
+		return "", http.StatusInternalServerError, ""
 	}
 	audit(h.q, r, auditActionTagRetag, name+":"+tag+"->"+dst.Name+":"+newTag)
-	h.retagRespond(w, r, dst.Name)
+	return dst.Name, http.StatusOK, ""
+}
+
+func targetNameOr(targetName, name string) string {
+	if targetName == "" {
+		return name
+	}
+	return targetName
 }
 
 // targetRepo resolves the repository a retag writes into, creating it when
@@ -268,7 +277,7 @@ func (c *manifestCopier) copyInto(ctx context.Context, m db.Manifest) error {
 // a manifest PUT records in blob_refs (plan task 9). An unparseable payload
 // references nothing knowable and yields no edges.
 func manifestBlobDigests(m db.Manifest) []string {
-	d := BuildManifestDisplay(m)
+	d := parseManifest(m)
 	digests := make([]string, 0, 1+len(d.Layers))
 	if d.ConfigDigest != "" {
 		digests = append(digests, d.ConfigDigest)

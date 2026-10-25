@@ -37,7 +37,7 @@ func NewRouter(store storage.Storage, q db.Querier, opts ...RouterOption) http.H
 	if cfg.jwks != nil {
 		v2.Get("/_keys", cfg.jwks.ServeHTTP)
 	}
-	NewBlobHandler(store).Mount(v2)
+	NewBlobHandler(store, q).Mount(v2)
 	NewUploadHandler(store, q, cfg.maxUploadSize).Mount(v2)
 	NewManifestHandler(q).Mount(v2)
 	NewCatalogHandler(q).Mount(v2)

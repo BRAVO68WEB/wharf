@@ -23,28 +23,35 @@ func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
 
 const createUser = `-- name: CreateUser :one
 
-INSERT INTO users (username, password_hash, is_admin)
-VALUES (?1, ?2, ?3)
-RETURNING id, username, password_hash, is_admin
+INSERT INTO users (username, password_hash, is_admin, is_service)
+VALUES (?1, ?2, ?3, ?4)
+RETURNING id, username, password_hash, is_admin, is_service
 `
 
 type CreateUserParams struct {
 	Username     string
 	PasswordHash string
 	IsAdmin      bool
+	IsService    bool
 }
 
 // User queries. password_hash is a bcrypt hash (plan task 11); plaintext
 // passwords never touch this table. is_admin is stored as 0/1 INTEGER and
 // mapped to Go bool by the sqlc override in sqlc.yaml.
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, createUser, arg.Username, arg.PasswordHash, arg.IsAdmin)
+	row := q.db.QueryRowContext(ctx, createUser,
+		arg.Username,
+		arg.PasswordHash,
+		arg.IsAdmin,
+		arg.IsService,
+	)
 	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.Username,
 		&i.PasswordHash,
 		&i.IsAdmin,
+		&i.IsService,
 	)
 	return i, err
 }
@@ -60,7 +67,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id int64) error {
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, username, password_hash, is_admin
+SELECT id, username, password_hash, is_admin, is_service
 FROM users
 WHERE id = ?1
 `
@@ -73,12 +80,13 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 		&i.Username,
 		&i.PasswordHash,
 		&i.IsAdmin,
+		&i.IsService,
 	)
 	return i, err
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, username, password_hash, is_admin
+SELECT id, username, password_hash, is_admin, is_service
 FROM users
 WHERE username = ?1
 `
@@ -91,12 +99,13 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 		&i.Username,
 		&i.PasswordHash,
 		&i.IsAdmin,
+		&i.IsService,
 	)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, username, password_hash, is_admin
+SELECT id, username, password_hash, is_admin, is_service
 FROM users
 ORDER BY username
 `
@@ -115,6 +124,7 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 			&i.Username,
 			&i.PasswordHash,
 			&i.IsAdmin,
+			&i.IsService,
 		); err != nil {
 			return nil, err
 		}

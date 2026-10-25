@@ -5,25 +5,30 @@
 INSERT INTO repositories (name)
 VALUES (sqlc.arg('name'))
 ON CONFLICT (name) DO UPDATE SET name = excluded.name
-RETURNING id, name, created_at;
+RETURNING id, name, created_at, published;
 
 -- name: GetRepositoryByName :one
-SELECT id, name, created_at
+SELECT id, name, created_at, published
 FROM repositories
 WHERE name = sqlc.arg('name');
 
 -- name: ListRepositories :many
-SELECT id, name, created_at
+SELECT id, name, created_at, published
 FROM repositories
 WHERE name > sqlc.arg('after')
 ORDER BY name
 LIMIT sqlc.arg('limit');
 
 -- name: ListRepositoriesFromStart :many
-SELECT id, name, created_at
+SELECT id, name, created_at, published
 FROM repositories
 ORDER BY name
 LIMIT sqlc.arg('limit');
+
+-- name: SetRepositoryPublished :execrows
+UPDATE repositories
+SET published = sqlc.arg('published')
+WHERE name = sqlc.arg('name');
 
 -- name: CountRepositories :one
 SELECT count(*) AS n

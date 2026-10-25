@@ -26,7 +26,7 @@ const createRepository = `-- name: CreateRepository :one
 INSERT INTO repositories (name)
 VALUES (?1)
 ON CONFLICT (name) DO UPDATE SET name = excluded.name
-RETURNING id, name, created_at
+RETURNING id, name, created_at, published
 `
 
 // Repository queries. Catalog pagination uses keyset paging on name so the
@@ -34,7 +34,12 @@ RETURNING id, name, created_at
 func (q *Queries) CreateRepository(ctx context.Context, name string) (Repository, error) {
 	row := q.db.QueryRowContext(ctx, createRepository, name)
 	var i Repository
-	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.Published,
+	)
 	return i, err
 }
 
@@ -49,7 +54,7 @@ func (q *Queries) DeleteRepository(ctx context.Context, id int64) error {
 }
 
 const getRepositoryByName = `-- name: GetRepositoryByName :one
-SELECT id, name, created_at
+SELECT id, name, created_at, published
 FROM repositories
 WHERE name = ?1
 `
@@ -57,12 +62,17 @@ WHERE name = ?1
 func (q *Queries) GetRepositoryByName(ctx context.Context, name string) (Repository, error) {
 	row := q.db.QueryRowContext(ctx, getRepositoryByName, name)
 	var i Repository
-	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.Published,
+	)
 	return i, err
 }
 
 const listRepositories = `-- name: ListRepositories :many
-SELECT id, name, created_at
+SELECT id, name, created_at, published
 FROM repositories
 WHERE name > ?1
 ORDER BY name
@@ -83,7 +93,12 @@ func (q *Queries) ListRepositories(ctx context.Context, arg ListRepositoriesPara
 	items := []Repository{}
 	for rows.Next() {
 		var i Repository
-		if err := rows.Scan(&i.ID, &i.Name, &i.CreatedAt); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.CreatedAt,
+			&i.Published,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -98,7 +113,7 @@ func (q *Queries) ListRepositories(ctx context.Context, arg ListRepositoriesPara
 }
 
 const listRepositoriesFromStart = `-- name: ListRepositoriesFromStart :many
-SELECT id, name, created_at
+SELECT id, name, created_at, published
 FROM repositories
 ORDER BY name
 LIMIT ?1
@@ -113,7 +128,12 @@ func (q *Queries) ListRepositoriesFromStart(ctx context.Context, limit int64) ([
 	items := []Repository{}
 	for rows.Next() {
 		var i Repository
-		if err := rows.Scan(&i.ID, &i.Name, &i.CreatedAt); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.CreatedAt,
+			&i.Published,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -125,4 +145,23 @@ func (q *Queries) ListRepositoriesFromStart(ctx context.Context, limit int64) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const setRepositoryPublished = `-- name: SetRepositoryPublished :execrows
+UPDATE repositories
+SET published = ?1
+WHERE name = ?2
+`
+
+type SetRepositoryPublishedParams struct {
+	Published bool
+	Name      string
+}
+
+func (q *Queries) SetRepositoryPublished(ctx context.Context, arg SetRepositoryPublishedParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setRepositoryPublished, arg.Published, arg.Name)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

@@ -44,6 +44,7 @@ auth:
 
 gc:
   batch_size: 256
+  interval: 0s
 
 logging:
   level: info
@@ -105,6 +106,19 @@ func TestLoad_ValidConfig(t *testing.T) {
 	if cfg.Auth.Session.Secret.Reveal() != "test-session-secret" {
 		t.Error("Auth.Session.Secret not resolved from env")
 	}
+	host, err := cfg.Server.PullHost()
+	if err != nil || host != "" {
+		t.Errorf("PullHost() = %q, %v; want empty", host, err)
+	}
+	withHost := mutate(validYAML, [2]string{"max_upload_size: 0", "max_upload_size: 0\n  public_url: https://registry.example.com:5000"})
+	cfg, err = loadYAML(t, withHost)
+	if err != nil {
+		t.Fatalf("Load(public_url) error = %v", err)
+	}
+	host, err = cfg.Server.PullHost()
+	if err != nil || host != "registry.example.com:5000" {
+		t.Errorf("PullHost() = %q, %v; want registry.example.com:5000", host, err)
+	}
 	if cfg.GC.BatchSize != 256 || cfg.Logging.Level != LogInfo {
 		t.Errorf("GC/Logging = %d/%q, want 256/info", cfg.GC.BatchSize, cfg.Logging.Level)
 	}
@@ -127,8 +141,11 @@ func TestLoad_ValidationErrors(t *testing.T) {
 		{"missing secret_env", [][2]string{{"secret_env: REGISTRY_SESSION_SECRET", "secret_env: \"\""}}, "auth.session.secret_env is required"},
 		{"zero session ttl", [][2]string{{"ttl: 24h", "ttl: 0s"}}, "auth.session.ttl"},
 		{"zero batch_size", [][2]string{{"batch_size: 256", "batch_size: 0"}}, "gc.batch_size"},
+		{"negative gc interval", [][2]string{{"interval: 0s", "interval: -1s"}}, "gc.interval"},
 		{"bad logging.level", [][2]string{{"level: info", "level: verbose"}}, "logging.level"},
 		{"zero port", [][2]string{{"port: 5000", "port: 0"}}, "server.port"},
+		{"public url with a path", [][2]string{{"max_upload_size: 0", "max_upload_size: 0\n  public_url: https://registry.example.com/v2"}}, "server.public_url must not include a path"},
+		{"public url without a scheme", [][2]string{{"max_upload_size: 0", "max_upload_size: 0\n  public_url: registry.example.com"}}, "server.public_url must be an absolute"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

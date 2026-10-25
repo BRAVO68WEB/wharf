@@ -261,6 +261,24 @@ func Test_BearerAuth_when_VersionCheck_then_401Or200(t *testing.T) {
 	}
 }
 
+func Test_BearerAuth_when_AnonymousToken_then_VersionCheckOnly(t *testing.T) {
+	signer := bearerSigner(t)
+	tok := bearerToken(t, signer, auth.AnonymousSubject, auth.AccessEntry{
+		Type: "repository", Name: "app", Actions: []string{"pull"},
+	})
+	called := false
+	version := bearerDo(t, bearerHandler(signer, bearerProbe(&called)), http.MethodGet, "http://registry.test/v2/", "Bearer "+tok)
+	bearerAssert(t, version, http.StatusOK, "")
+	if called {
+		t.Fatal("version check must be answered by the middleware")
+	}
+	catalog := bearerDo(t, bearerHandler(signer, bearerProbe(&called)), http.MethodGet, "http://registry.test/v2/_catalog", "Bearer "+tok)
+	bearerAssert(t, catalog, http.StatusForbidden, bearerDenied)
+	if called {
+		t.Fatal("anonymous token must not reach the catalog")
+	}
+}
+
 func Test_BearerAuth_when_TokenOrNonV2Path_then_NoAuthRequired(t *testing.T) {
 	signer := bearerSigner(t)
 	for _, target := range []string{"http://registry.test/token", "http://registry.test/dashboard", "http://registry.test/healthz"} {

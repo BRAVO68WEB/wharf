@@ -13,14 +13,22 @@ type Querier interface {
 	// (cross-repo mounts add edges without re-uploading); blob_metadata is the
 	// global registry-wide blob record GC sweeps against.
 	AddBlobRef(ctx context.Context, arg AddBlobRefParams) error
+	CountAdmins(ctx context.Context) (int64, error)
 	CountAuditEntries(ctx context.Context) (int64, error)
 	CountBlobMetadata(ctx context.Context) (int64, error)
 	CountBlobRefs(ctx context.Context) (int64, error)
 	CountManifestsByRepo(ctx context.Context, repoID int64) (int64, error)
+	// Public catalog. published is a literal 1, not a bound flag, so a caller
+	// cannot ask this query for private rows. The LIKE argument stays the only
+	// parameter before LIMIT, clear of the ESCAPE quote.
+	CountPublishedRepositories(ctx context.Context, pattern string) (int64, error)
 	CountRepositories(ctx context.Context) (int64, error)
 	CountRepositoriesMatching(ctx context.Context, pattern string) (int64, error)
 	CountTagsByRepo(ctx context.Context, repoID int64) (int64, error)
 	CountUsers(ctx context.Context) (int64, error)
+	// Access tokens. token_hash is the hex SHA-256 of a high-entropy token.
+	// The plaintext is returned once at creation and never stored.
+	CreateAccessToken(ctx context.Context, arg CreateAccessTokenParams) (CreateAccessTokenRow, error)
 	// Repository queries. Catalog pagination uses keyset paging on name so the
 	// OCI `?n=&last=` contract maps 1:1 (see plan task 10).
 	CreateRepository(ctx context.Context, name string) (Repository, error)
@@ -45,10 +53,18 @@ type Querier interface {
 	DeleteTagsByManifest(ctx context.Context, arg DeleteTagsByManifestParams) error
 	DeleteUpload(ctx context.Context, uuid string) error
 	DeleteUser(ctx context.Context, id int64) error
+	GetActiveAccessToken(ctx context.Context, arg GetActiveAccessTokenParams) (GetActiveAccessTokenRow, error)
 	GetBlobMetadata(ctx context.Context, digest string) (BlobMetadatum, error)
 	GetBlobRef(ctx context.Context, arg GetBlobRefParams) (BlobRef, error)
 	GetManifest(ctx context.Context, arg GetManifestParams) (Manifest, error)
 	GetManifestByTag(ctx context.Context, arg GetManifestByTagParams) (Manifest, error)
+	// Catalog rows for the embedded dashboard. updated_at is the newest tag
+	// touch, or the repository's created_at when it has no tags. size_bytes is
+	// the sum of blob_metadata sizes referenced by the repository (shared blobs
+	// count once per repository). The mounted row is the first of this same
+	// order; the handler skips it in the index with the offset, because a second
+	// bound parameter after ESCAPE does not survive sqlc's parser.
+	GetMountedRepository(ctx context.Context) (GetMountedRepositoryRow, error)
 	GetRepositoryByName(ctx context.Context, name string) (Repository, error)
 	GetSession(ctx context.Context, token string) (Session, error)
 	GetTag(ctx context.Context, arg GetTagParams) (Tag, error)
@@ -58,6 +74,7 @@ type Querier interface {
 	// Audit log queries. Every mutating dashboard/registry action lands here.
 	// Keyset pagination walks id descending (newest first).
 	InsertAuditEntry(ctx context.Context, arg InsertAuditEntryParams) error
+	ListAccessTokensByUser(ctx context.Context, userID int64) ([]ListAccessTokensByUserRow, error)
 	ListActiveUploads(ctx context.Context, now int64) ([]Upload, error)
 	ListAuditEntries(ctx context.Context, arg ListAuditEntriesParams) ([]AuditLog, error)
 	ListAuditEntriesByTarget(ctx context.Context, arg ListAuditEntriesByTargetParams) ([]AuditLog, error)
@@ -65,9 +82,11 @@ type Querier interface {
 	ListBlobMetadata(ctx context.Context, limit int64) ([]BlobMetadatum, error)
 	ListBlobMetadataAfter(ctx context.Context, arg ListBlobMetadataAfterParams) ([]BlobMetadatum, error)
 	ListBlobRefsByRepo(ctx context.Context, repoID int64) ([]BlobRef, error)
+	ListCatalogRepositories(ctx context.Context, arg ListCatalogRepositoriesParams) ([]ListCatalogRepositoriesRow, error)
 	ListExpiredUploads(ctx context.Context, now int64) ([]Upload, error)
 	ListManifestDigests(ctx context.Context) ([]string, error)
 	ListManifestsByRepo(ctx context.Context, repoID int64) ([]Manifest, error)
+	ListPublishedRepositories(ctx context.Context, arg ListPublishedRepositoriesParams) ([]ListPublishedRepositoriesRow, error)
 	ListReposForBlob(ctx context.Context, digest string) ([]int64, error)
 	ListRepositories(ctx context.Context, arg ListRepositoriesParams) ([]Repository, error)
 	ListRepositoriesFromStart(ctx context.Context, limit int64) ([]Repository, error)
@@ -82,6 +101,9 @@ type Querier interface {
 	ListTagsByRepoFromStart(ctx context.Context, arg ListTagsByRepoFromStartParams) ([]Tag, error)
 	ListTagsPointingToManifest(ctx context.Context, arg ListTagsPointingToManifestParams) ([]Tag, error)
 	ListUsers(ctx context.Context) ([]User, error)
+	RevokeAccessToken(ctx context.Context, arg RevokeAccessTokenParams) (int64, error)
+	RevokeAccessTokensByUser(ctx context.Context, userID int64) error
+	SetRepositoryPublished(ctx context.Context, arg SetRepositoryPublishedParams) (int64, error)
 	// Tag queries. Tags are the mutable name -> manifest mapping; retagging is
 	// an upsert here (plan task 20).
 	SetTag(ctx context.Context, arg SetTagParams) error

@@ -2,3 +2,4 @@
 bin/
 .codegraph
 .git/
+site/node_modules/
