@@ -1,0 +1,18 @@
+name: Main
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  from-dev:
+    name: From dev
+    runs-on: ubuntu-latest
+    steps:
+      - name: Accept only a pull request from dev
+        run: |
+          if [ "${{ github.head_ref }}" != "dev" ]; then
+            echo "main only accepts a pull request from dev."
+            echo "This pull request is from ${{ github.head_ref }}."
+            exit 1
+          fi

@@ -83,14 +83,32 @@ origin changes is in [Configuration](CONFIG.md).
 
 ## Release
 
-Pushing a `v*` tag is the only publish step. A tag such as `v1.2.3`
-creates a GitHub Release and a container image. Pushes to `main` do
-not publish either one.
+`dev` is the default branch. Day-to-day work lands there. `main` does
+not take a direct push, and it does not take a pull request from any
+branch except `dev`.
+
+A preview tag is cut from `dev`. A stable tag is cut from `main`,
+after that commit has been merged. Pushes that are not tags do not
+publish a release or an image.
 
 ```bash
+git checkout dev
+git tag v1.2.3-rc.1
+git push origin v1.2.3-rc.1
+```
+
+Open a pull request from `dev` into `main` and merge it. Then:
+
+```bash
+git checkout main
+git pull
 git tag v1.2.3
 git push origin v1.2.3
 ```
+
+`v1.2.3-preview.1` is the other preview form. A preview is a GitHub
+prerelease. It does not move `latest`, `1.2`, or `1`. A stable tag
+does.
 
 Each archive contains the `wharf` binary, `LICENSE`, and `README.md`.
 Linux and macOS archives are `.tar.gz`. Windows archives are `.zip`.

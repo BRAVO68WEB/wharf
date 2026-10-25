@@ -10,8 +10,48 @@ permissions:
   packages: write
 
 jobs:
+  channel:
+    name: Channel
+    runs-on: ubuntu-latest
+    outputs:
+      name: ${{ steps.check.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require a stable tag on main or a preview tag on dev
+        id: check
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          git fetch origin main dev
+          sha=$(git rev-parse HEAD)
+          on_main=0
+          on_dev=0
+          git merge-base --is-ancestor "$sha" origin/main && on_main=1 || true
+          git merge-base --is-ancestor "$sha" origin/dev && on_dev=1 || true
+          if [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            if [[ "$on_main" -ne 1 ]]; then
+              echo "Stable tag $tag must point at a commit on main."
+              exit 1
+            fi
+            echo "name=stable" >> "$GITHUB_OUTPUT"
+          elif [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-(rc|preview)\.[0-9]+$ ]]; then
+            if [[ "$on_dev" -ne 1 ]]; then
+              echo "Preview tag $tag must point at a commit on dev."
+              exit 1
+            fi
+            echo "name=preview" >> "$GITHUB_OUTPUT"
+          else
+            echo "Tag $tag is not a release tag."
+            echo "Use vX.Y.Z on main, or vX.Y.Z-rc.N / vX.Y.Z-preview.N on dev."
+            exit 1
+          fi
+
   binaries:
     name: Binaries
+    needs: channel
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,6 +86,7 @@ jobs:
 
   image:
     name: Image
+    needs: channel
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -78,10 +119,10 @@ jobs:
             bravo68web/wharf
           tags: |
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ needs.channel.outputs.name == 'stable' }}
+            type=semver,pattern={{major}},enable=${{ needs.channel.outputs.name == 'stable' }}
           flavor: |
-            latest=auto
+            latest=${{ needs.channel.outputs.name == 'stable' && 'auto' || 'false' }}
 
       - name: Image version
         id: ver

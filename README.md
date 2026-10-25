@@ -51,9 +51,9 @@ The compose stack is local development, with MinIO. Change its
 environment values before the published port is reachable by anyone
 else. `WHARF_HOST_PORT` moves the host port.
 
-A `v*` tag publishes the GitHub Release,
-`bravo68web/wharf`, and `ghcr.io/bravo68web/wharf`. See
-[Deploy](docs/DEPLOY.md#release).
+`dev` is the default branch. A preview tag on `dev` and a stable tag
+on `main` publish the GitHub Release, `bravo68web/wharf`, and
+`ghcr.io/bravo68web/wharf`. See [Deploy](docs/DEPLOY.md#release).
 
 ## Documentation
 
