@@ -19,3 +19,26 @@ jobs:
 
       - name: Test
         run: go test ./...
+
+  conformance:
+    name: Conformance
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: OCI distribution conformance
+        run: scripts/run-conformance.sh filesystem
+
+      - name: Upload conformance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oci-conformance
+          path: .omo/evidence/task-22-docker-registry-htmx
+          if-no-files-found: ignore

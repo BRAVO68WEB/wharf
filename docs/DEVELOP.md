@@ -36,9 +36,11 @@ scripts/run-conformance.sh minio
 scripts/e2e-docker.sh
 ```
 
-`run-conformance.sh` runs the OCI Distribution Spec 1.1 suite.
-`e2e-docker.sh` runs a Docker client round trip. Both build a binary
-and a local config. They are not part of `make test`.
+`run-conformance.sh` runs the OCI Distribution Spec 1.1 suite
+against distribution-spec `main`. CI runs the filesystem backend on
+push and on pull requests. The binary under test is built with
+`go build`. It does not embed the dashboard. The MinIO backend and
+`e2e-docker.sh` stay manual. None of these are part of `make test`.
 
 ## Layout
 

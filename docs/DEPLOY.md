@@ -6,7 +6,7 @@ This page is how you run the process. The YAML file is in
 
 ## Source build
 
-A source build needs Go 1.25.4 or later, Node.js 24, and pnpm 9.
+A source build needs Go 1.26 or later, Node.js 24, and pnpm 9.
 `make build` installs the dashboard dependencies, builds the React
 app, and compiles `bin/wharf` with those files embedded.
 
@@ -83,9 +83,9 @@ origin changes is in [Configuration](CONFIG.md).
 
 ## Release
 
-`dev` is the default branch. Day-to-day work lands there. `main` does
-not take a direct push, and it does not take a pull request from any
-branch except `dev`.
+`dev` is the default branch. Day-to-day work lands there. `main` is
+protected. A direct push is rejected. The only way onto `main` is a
+pull request from `dev`, with the Test and From dev checks green.
 
 A preview tag is cut from `dev`. A stable tag is cut from `main`,
 after that commit has been merged. Pushes that are not tags do not
