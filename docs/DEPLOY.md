@@ -6,7 +6,7 @@ This page is how you run the process. The YAML file is in
 
 ## Source build
 
-A source build needs Go 1.25.4 or later, Node.js 24, and pnpm 9.
+A source build needs Go 1.26 or later, Node.js 24, and pnpm 9.
 `make build` installs the dashboard dependencies, builds the React
 app, and compiles `bin/wharf` with those files embedded.
 
