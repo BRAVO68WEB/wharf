@@ -35,7 +35,12 @@ RUN go mod download
 COPY . .
 # The ui stage's out/ replaces any stub index.html from the context.
 COPY --from=ui /src/site/out ./site/out
-RUN go build -tags embed -trimpath -ldflags="-s -w" -o /out/wharf ./cmd/wharf
+ARG VERSION=dev
+ARG COMMIT=
+ARG DATE=
+RUN go build -tags embed -trimpath \
+    -ldflags="-s -w -X github.com/BRAVO68WEB/wharf/internal/version.Version=${VERSION} -X github.com/BRAVO68WEB/wharf/internal/version.Commit=${COMMIT} -X github.com/BRAVO68WEB/wharf/internal/version.Date=${DATE}" \
+    -o /out/wharf ./cmd/wharf
 
 # ---- stage 3: curl + musl closure + data directory for the final image -
 FROM alpine:3.22 AS runtime-deps

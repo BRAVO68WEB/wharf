@@ -80,3 +80,50 @@ The process does not terminate TLS. An `http://` host belongs in
 Docker's `insecure-registries` list. Behind a TLS proxy, set
 `server.public_url` to the `https` origin clients use. What that
 origin changes is in [Configuration](CONFIG.md).
+
+## Release
+
+Pushing a `v*` tag is the only publish step. A tag such as `v1.2.3`
+creates a GitHub Release and a container image. Pushes to `main` do
+not publish either one.
+
+```bash
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+Each archive contains the `wharf` binary, `LICENSE`, and `README.md`.
+Linux and macOS archives are `.tar.gz`. Windows archives are `.zip`.
+The names look like `wharf_1.2.3_linux_amd64.tar.gz`.
+
+| OS | amd64 | arm64 |
+| --- | --- | --- |
+| linux | yes | yes |
+| darwin | yes | yes |
+| windows | yes | yes |
+
+The same tag is pushed to `bravo68web/wharf` and
+`ghcr.io/bravo68web/wharf`. One tag covers `linux/amd64` and
+`linux/arm64`. A stable tag also publishes `1.2.3`, `1.2`, `1`, and
+`latest`. A prerelease tag such as `v1.2.3-rc.1` publishes
+`1.2.3-rc.1` and leaves `latest` where it is.
+
+```bash
+docker run --rm -p 5000:5000 \
+  -e REGISTRY_SESSION_SECRET='replace-with-a-secret-of-32-bytes' \
+  -e REGISTRY_ADMIN_USER='admin' \
+  -e REGISTRY_ADMIN_PASSWORD='replace-with-a-long-password' \
+  -v wharf-data:/var/lib/registry \
+  bravo68web/wharf:1.2.3
+```
+
+`ghcr.io/bravo68web/wharf:1.2.3` takes the same flags. The image still
+reads `/etc/registry/config.yml` and still requires
+`REGISTRY_SESSION_SECRET`.
+
+Create the public Docker Hub repository `bravo68web/wharf` before the
+first tag. Set the GitHub Actions secrets `DOCKERHUB_USERNAME` and
+`DOCKERHUB_TOKEN`. The token is a read-write access token. The first
+GHCR push creates a private package. Open that package, link it to
+this repository, and set the visibility to public before other people
+can pull it.

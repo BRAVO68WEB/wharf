@@ -94,8 +94,8 @@ func TestLoad_ValidConfig(t *testing.T) {
 	if cfg.Storage.S3.Bucket != "registry-blobs" || !cfg.Storage.S3.ForcePathStyle {
 		t.Errorf("Storage.S3 = %+v, want bucket registry-blobs + force_path_style", cfg.Storage.S3)
 	}
-	if cfg.Database.Path != "./data/registry.db" {
-		t.Errorf("Database.Path = %q", cfg.Database.Path)
+	if cfg.Database.Path != "/var/lib/wharf/registry.db" {
+		t.Errorf("Database.Path = %q, want /var/lib/wharf/registry.db", cfg.Database.Path)
 	}
 	if cfg.Auth.JWT.TokenTTL.Duration() != 15*time.Minute {
 		t.Errorf("Auth.JWT.TokenTTL = %v, want 15m", cfg.Auth.JWT.TokenTTL.Duration())

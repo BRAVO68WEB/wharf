@@ -1,0 +1,51 @@
+version: 2
+
+project_name: wharf
+
+before:
+  hooks:
+    - pnpm --dir site install --frozen-lockfile
+    - pnpm --dir site run build
+
+builds:
+  - id: wharf
+    main: ./cmd/wharf
+    binary: wharf
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    tags:
+      - embed
+    ldflags:
+      - -s -w
+      - -X github.com/BRAVO68WEB/wharf/internal/version.Version={{.Version}}
+      - -X github.com/BRAVO68WEB/wharf/internal/version.Commit={{.Commit}}
+      - -X github.com/BRAVO68WEB/wharf/internal/version.Date={{.Date}}
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: github
+  sort: asc
+
+release:
+  prerelease: auto

@@ -36,7 +36,7 @@ database:
   # Absolute: the SQLite DSN builder emits file:<path>; a relative path like
   # ./data/registry.db becomes file:./data/registry.db, which the driver
   # rejects with "invalid uri authority".
-  path: /Users/jyotirmoybandyopadhayaya/Projects/OSS/better-docker-registry/data/registry.db
+  path: /var/lib/wharf/registry.db
 
 auth:
   jwt:

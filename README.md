@@ -51,6 +51,10 @@ The compose stack is local development, with MinIO. Change its
 environment values before the published port is reachable by anyone
 else. `WHARF_HOST_PORT` moves the host port.
 
+A `v*` tag publishes the GitHub Release,
+`bravo68web/wharf`, and `ghcr.io/bravo68web/wharf`. See
+[Deploy](docs/DEPLOY.md#release).
+
 ## Documentation
 
 | Guide | What it covers |
@@ -65,3 +69,8 @@ else. `WHARF_HOST_PORT` moves the host port.
 | [Development](docs/DEVELOP.md) | Tests, Vite, and the conformance scripts |
 | [Product](PRODUCT.md) | What this registry is for, and what it is not |
 | [Design](DESIGN.md) | Dashboard visual system |
+
+## License
+
+MIT. See [LICENSE](LICENSE). Copyright (c) 2026 Jyotirmoy
+Bandyopadhayaya.

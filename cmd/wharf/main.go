@@ -32,12 +32,13 @@ import (
 	"github.com/BRAVO68WEB/wharf/internal/storage"
 	"github.com/BRAVO68WEB/wharf/internal/storage/filesystem"
 	"github.com/BRAVO68WEB/wharf/internal/storage/s3"
+	"github.com/BRAVO68WEB/wharf/internal/version"
 	"github.com/BRAVO68WEB/wharf/site"
 )
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintf(os.Stderr, "registry: %v\n", err)
+		fmt.Fprintf(os.Stderr, "wharf: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -56,14 +57,19 @@ func logLevel(level string) slog.Level {
 }
 
 func run(args []string) error {
-	fs := flag.NewFlagSet("registry", flag.ContinueOnError)
+	fs := flag.NewFlagSet("wharf", flag.ContinueOnError)
 	configPath := fs.String("config", "", "path to configuration file (required)")
 	addr := fs.String("addr", "", "HTTP listen address (overrides server.port from config)")
+	showVersion := fs.Bool("version", false, "print version and exit")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
 		return err
+	}
+	if *showVersion {
+		fmt.Println("wharf " + version.Line())
+		return nil
 	}
 
 	cfg, err := config.Load(*configPath)
