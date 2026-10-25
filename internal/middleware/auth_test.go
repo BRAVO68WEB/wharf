@@ -70,7 +70,7 @@ func bearerToken(t *testing.T, s *auth.Signer, subject string, access ...auth.Ac
 }
 
 func bearerHandler(signer *auth.Signer, next http.Handler) http.Handler {
-	return middleware.BearerAuth(signer, bearerService)(next)
+	return middleware.BearerAuth(signer, bearerService, "")(next)
 }
 
 // bearerProbe answers 200 and records whether the chain reached the handler.
@@ -115,6 +115,21 @@ func Test_BearerAuth_when_MissingOrMalformedAuthorization_then_401Challenge(t *t
 		if called {
 			t.Fatalf("handler ran for header %q", header)
 		}
+	}
+}
+
+func Test_BearerAuth_when_RealmConfigured_then_ChallengeIgnoresHost(t *testing.T) {
+	signer := bearerSigner(t)
+	called := false
+	h := middleware.BearerAuth(signer, bearerService, "https://registry.example.com")(bearerProbe(&called))
+	rec := bearerDo(t, h, http.MethodGet, "http://evil.example/v2/", "")
+	bearerAssert(t, rec, http.StatusUnauthorized, bearerRequired)
+	want := `Bearer realm="https://registry.example.com/token",service="test-service",scope=""`
+	if got := rec.Header().Get("WWW-Authenticate"); got != want {
+		t.Fatalf("WWW-Authenticate = %q, want %q", got, want)
+	}
+	if called {
+		t.Fatal("handler ran without a token")
 	}
 }
 
@@ -241,6 +256,14 @@ func Test_BearerAuth_when_SlashedRepoName_then_ScopedToFullName(t *testing.T) {
 	bearerAssert(t, bearerDo(t, bearerHandler(signer, bearerProbe(&called)), http.MethodGet, target, "Bearer "+tok), http.StatusOK, "")
 	partial := bearerToken(t, signer, "alice", auth.AccessEntry{Type: "repository", Name: "nginx", Actions: []string{"pull"}})
 	bearerAssert(t, bearerDo(t, bearerHandler(signer, bearerProbe(&called)), http.MethodGet, target, "Bearer "+partial), http.StatusForbidden, bearerDenied)
+
+	blob := "http://registry.test/v2/team/blobs/app/blobs/sha256:abcd"
+	full := bearerToken(t, signer, "alice", auth.AccessEntry{Type: "repository", Name: "team/blobs/app", Actions: []string{"pull"}})
+	called = false
+	bearerAssert(t, bearerDo(t, bearerHandler(signer, bearerProbe(&called)), http.MethodGet, blob, "Bearer "+full), http.StatusOK, "")
+	if !called {
+		t.Fatal("blob URL under team/blobs/app did not reach the handler")
+	}
 }
 
 func Test_BearerAuth_when_VersionCheck_then_401Or200(t *testing.T) {

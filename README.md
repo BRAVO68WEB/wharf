@@ -52,6 +52,10 @@ when you only want the image.
 
 `docker push` to an `http://` registry needs that host in Docker's
 `insecure-registries` list. The registry process does not speak TLS.
+Put a TLS proxy in front of it, and set `server.public_url` to that
+`https` origin. The session cookie's `Secure` flag and the bearer
+token realm both follow that origin, so `docker login` does not fall
+back to `http`. An empty `public_url` keeps the local HTTP behavior.
 
 ## Run it on a machine
 
@@ -306,7 +310,7 @@ bytes. `0` means no limit.
 | `auth.jwt.issuer` | JWT `iss` claim. |
 | `auth.jwt.service` | JWT audience and the `service` Docker must send to `/token`. |
 | `auth.jwt.token_ttl` | Bearer-token lifetime. Greater than zero. Example: `15m`. |
-| `auth.session.secret_env` | Name of the env var with the session secret. The variable must be non-empty. |
+| `auth.session.secret_env` | Name of the env var with the session secret. The value must be at least 32 bytes. |
 | `auth.session.ttl` | Dashboard session lifetime. Example: `24h`. |
 | `auth.dev_anonymous` | Skip bearer checks on `/v2`. Development only. |
 | `gc.batch_size` | Blobs deleted per batch. Greater than zero. |

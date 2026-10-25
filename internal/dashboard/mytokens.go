@@ -59,7 +59,7 @@ func (h *HTTPAPI) createMyToken(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	plain, err := h.issueToken(r, user.ID, name)
+	plain, err := issueToken(r.Context(), h.q, user.ID, name)
 	if err != nil {
 		writeAPIError(w, http.StatusInternalServerError, "internal server error")
 		return

@@ -2,90 +2,12 @@ package dashboard
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"errors"
-	"net/http"
 	"strings"
-
-	"github.com/go-chi/chi/v5"
 
 	"github.com/user/better-docker-registry/internal/db"
 	"github.com/user/better-docker-registry/internal/storage"
 )
-
-// ManifestsHandler serves the manifest detail view for one repository.
-// store supplies the image config blob behind a manifest's config digest and
-// may be nil, which omits the container config section.
-type ManifestsHandler struct {
-	q     db.Querier
-	store storage.Storage
-}
-
-// NewManifestsHandler returns a handler over the manifests recorded in q and
-// the blobs held in store.
-func NewManifestsHandler(q db.Querier, store storage.Storage) *ManifestsHandler {
-	return &ManifestsHandler{q: q, store: store}
-}
-
-// Mount registers the manifest detail route on r (a subrouter mounted at the
-// repo path prefix). Wrap r with CollapseRepoName so multi-segment repository
-// names arrive intact.
-func (h *ManifestsHandler) Mount(r chi.Router) {
-	r.Get("/{name}/manifests/{digest}", h.showManifest)
-}
-
-// showManifest renders the structured manifest detail: media type, config
-// digest and layer list. The raw JSON payload is never displayed. HTMX
-// callers get a fragment for the #manifest-detail container; direct
-// navigation gets a full page.
-func (h *ManifestsHandler) showManifest(w http.ResponseWriter, r *http.Request) {
-	name := RepoPathParam(r)
-	digest := chi.URLParam(r, "digest")
-	if name == "" || digest == "" {
-		http.NotFound(w, r)
-		return
-	}
-
-	ctx := r.Context()
-	repo, err := h.q.GetRepositoryByName(ctx, name)
-	if errors.Is(err, sql.ErrNoRows) {
-		http.NotFound(w, r)
-		return
-	}
-	if err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	m, err := h.q.GetManifest(ctx, db.GetManifestParams{RepoID: repo.ID, Digest: digest})
-	if errors.Is(err, sql.ErrNoRows) {
-		http.NotFound(w, r)
-		return
-	}
-	if err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	csrf := sessionCSRF(r)
-	if !json.Valid(m.Payload) {
-		if isHTMX(r) {
-			_ = ManifestError("manifest payload is not valid JSON").Render(ctx, w)
-			return
-		}
-		_ = ManifestErrorPage("manifest payload is not valid JSON").Render(ctx, w)
-		return
-	}
-
-	d := BuildManifestDisplay(ctx, m, h.store)
-	if isHTMX(r) {
-		_ = ManifestDetail(name, d, csrf).Render(ctx, w)
-		return
-	}
-	_ = ManifestDetailPage(name, d, csrf).Render(ctx, w)
-}
 
 // manifestDisplay is the structured view of one manifest. Only parsed fields
 // are shown; the raw payload is never rendered.

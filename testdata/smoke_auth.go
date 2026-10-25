@@ -77,7 +77,7 @@ func main() {
 		fmt.Println("listen:", err)
 		os.Exit(1)
 	}
-	srv := &http.Server{Handler: middleware.BearerAuth(signer, "smoke-service")(manifests), ReadHeaderTimeout: 5 * time.Second}
+	srv := &http.Server{Handler: middleware.BearerAuth(signer, "smoke-service", "")(manifests), ReadHeaderTimeout: 5 * time.Second}
 	go func() { _ = srv.Serve(ln) }()
 	defer func() { _ = srv.Close() }()
 	base := "http://" + ln.Addr().String()

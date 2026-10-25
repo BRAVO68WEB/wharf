@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
+	"modernc.org/sqlite"
 
 	"github.com/go-chi/chi/v5"
 
@@ -64,13 +66,17 @@ func (h *HTTPAPI) createAccount(w http.ResponseWriter, r *http.Request) {
 		IsAdmin:      false,
 		IsService:    body.Service,
 	})
-	if err != nil {
+	if isUniqueViolation(err) {
 		writeAPIError(w, http.StatusConflict, "that username is taken")
+		return
+	}
+	if err != nil {
+		writeAPIError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	resp := accountJSON{ID: user.ID, Username: user.Username, Service: user.IsService}
 	if body.Service {
-		plain, err := h.issueToken(r, user.ID, "default")
+		plain, err := issueToken(r.Context(), h.q, user.ID, "default")
 		if err != nil {
 			writeAPIError(w, http.StatusInternalServerError, "internal server error")
 			return
@@ -136,19 +142,20 @@ func (h *HTTPAPI) createAccountToken(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Name string `json:"name"`
 	}
-	_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<14)).Decode(&body)
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<14)).Decode(&body); err != nil {
+		writeAPIError(w, http.StatusBadRequest, "invalid token")
+		return
+	}
 	name := strings.TrimSpace(body.Name)
+	var plain string
 	if user.IsService {
-		if err := h.q.RevokeAccessTokensByUser(r.Context(), user.ID); err != nil {
-			writeAPIError(w, http.StatusInternalServerError, "internal server error")
-			return
-		}
-		name = "default"
+		plain, err = h.rotateServiceToken(r, user.ID)
 	} else if name == "" {
 		writeAPIError(w, http.StatusBadRequest, "token name is required")
 		return
+	} else {
+		plain, err = issueToken(r.Context(), h.q, user.ID, name)
 	}
-	plain, err := h.issueToken(r, user.ID, name)
 	if err != nil {
 		writeAPIError(w, http.StatusInternalServerError, "internal server error")
 		return
@@ -157,12 +164,32 @@ func (h *HTTPAPI) createAccountToken(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]string{"token": plain, "username": user.Username})
 }
 
-func (h *HTTPAPI) issueToken(r *http.Request, userID int64, name string) (string, error) {
+func (h *HTTPAPI) rotateServiceToken(r *http.Request, userID int64) (string, error) {
+	tx, err := h.sqlDB.BeginTx(r.Context(), nil)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = tx.Rollback() }()
+	q := db.New(tx)
+	if err := q.RevokeAccessTokensByUser(r.Context(), userID); err != nil {
+		return "", err
+	}
+	plain, err := issueToken(r.Context(), q, userID, "default")
+	if err != nil {
+		return "", err
+	}
+	if err := tx.Commit(); err != nil {
+		return "", err
+	}
+	return plain, nil
+}
+
+func issueToken(ctx context.Context, q db.Querier, userID int64, name string) (string, error) {
 	plain, hash, err := auth.NewAccessToken()
 	if err != nil {
 		return "", err
 	}
-	_, err = h.q.CreateAccessToken(r.Context(), db.CreateAccessTokenParams{
+	_, err = q.CreateAccessToken(ctx, db.CreateAccessTokenParams{
 		UserID:    userID,
 		Name:      name,
 		TokenHash: hash,
@@ -171,6 +198,19 @@ func (h *HTTPAPI) issueToken(r *http.Request, userID int64, name string) (string
 		return "", err
 	}
 	return plain, nil
+}
+
+func isUniqueViolation(err error) bool {
+	var sqliteErr *sqlite.Error
+	if !errors.As(err, &sqliteErr) {
+		return false
+	}
+	// 2067 is SQLITE_CONSTRAINT_UNIQUE. 19 is the primary constraint code
+	// some drivers return; only a UNIQUE message counts in that case.
+	if sqliteErr.Code() == 2067 {
+		return true
+	}
+	return sqliteErr.Code() == 19 && strings.Contains(sqliteErr.Error(), "UNIQUE")
 }
 
 func (h *HTTPAPI) admin(w http.ResponseWriter, r *http.Request) (auth.SessionUser, bool) {

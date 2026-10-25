@@ -16,7 +16,9 @@ func rangeFixture(t *testing.T) (*fakeStorage, http.Handler, string, []byte) {
 	store := newFakeStorage()
 	data := bytes.Repeat([]byte("0123456789"), 100)
 	digest := store.seed(data)
-	return store, api.NewRouter(store, newTestQueries(t)), digest, data
+	q := newTestQueries(t)
+	seedBlobRef(t, q, "test", digest)
+	return store, api.NewRouter(store, q), digest, data
 }
 
 func Test_GetBlob_when_RangeStartEnd_then_206PartialBytes(t *testing.T) {

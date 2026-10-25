@@ -29,7 +29,7 @@ make -C "$ROOT" build
 
 openssl genrsa -out "$RUN_DIR/jwt_private.pem" 2048 2>/dev/null
 
-export REGISTRY_SESSION_SECRET=e2e-session-secret
+export REGISTRY_SESSION_SECRET=e2e-session-secret-padding-32b!!
 export REGISTRY_S3_ACCESS_KEY=bdr-e2e-access
 export REGISTRY_S3_SECRET_KEY=bdr-e2e-secret
 

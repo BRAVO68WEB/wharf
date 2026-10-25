@@ -42,7 +42,7 @@ services:
       # dev boxes (BDR_HOST_PORT=5001 docker compose up).
       - "${BDR_HOST_PORT:-5000}:5000"
     environment:
-      REGISTRY_SESSION_SECRET: dev-only-session-secret
+      REGISTRY_SESSION_SECRET: dev-only-session-secret-padding!!
       REGISTRY_S3_ACCESS_KEY: bdr-minio
       REGISTRY_S3_SECRET_KEY: bdr-minio-secret
       # DEV-ONLY bootstrap admin (docker login / dashboard login).

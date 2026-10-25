@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 
@@ -21,9 +20,8 @@ import (
 	"github.com/user/better-docker-registry/internal/storage"
 )
 
-// GC UI tests (plan task 18): stats page, dry-run listing, real sweep, CSRF
-// and the /v2 quiesce wiring. Helpers are gcTest-prefixed — dashboard_test is
-// shared with the repo/tag/manifest suites.
+// Garbage-collection fixtures shared by the JSON API tests and the /v2
+// quiesce tests. Helpers are gcTest-prefixed.
 
 // gcTestStore is a map-backed storage.Storage. Delete keeps the task-4
 // contract (missing digest fails with ErrBlobNotFound) so the sweep runs
@@ -184,112 +182,27 @@ func gcTestSeedFive(t *testing.T, q db.Querier, store storage.Storage) gcTestSee
 	return seed
 }
 
-// gcTestRouter mounts the GC routes over a fresh database and store.
+// gcTestRouter mounts the JSON API, including garbage collection, over a
+// fresh database and store.
 func gcTestRouter(t *testing.T, lock *gc.Lock) (http.Handler, db.Querier, *gcTestStore) {
 	t.Helper()
-	q := gcTestDB(t)
+	sqlDB, err := db.OpenAndMigrate(t.Context(), filepath.Join(t.TempDir(), "registry.db"))
+	if err != nil {
+		t.Fatalf("OpenAndMigrate: %v", err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	q := db.New(sqlDB)
 	store := newGCTestStore()
 	r := chi.NewRouter()
-	dashboard.NewGCHandler(q, store, lock).Mount(r)
+	dashboard.NewHTTPAPI(sqlDB, q, store, lock).Mount(r)
 	return r, q, store
 }
 
-// gcTestRequest issues one request with HTMX swap headers and returns the
-// recorded response.
+// gcTestRequest issues one request and returns the recorded response.
 func gcTestRequest(t *testing.T, h http.Handler, method, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(method, path, nil)
-	req.Header.Set("HX-Request", "true")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	return rec
-}
-
-func Test_servePage_when_rendered_then_statsAndButtons(t *testing.T) {
-	// Given: 5 blobs of which 2 are referenced by a manifest.
-	lock := gc.NewLock()
-	h, q, store := gcTestRouter(t, lock)
-	seed := gcTestSeedFive(t, q, store)
-
-	// When: the GC page is fetched.
-	rec := gcTestRequest(t, h, http.MethodGet, "/dashboard/gc")
-
-	// Then: the summary numbers are on the page.
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
-	}
-	body := rec.Body.String()
-	for _, want := range []string{
-		`data-testid="gc-stats"`,
-		`data-testid="gc-total-blobs">5<`,
-		`data-testid="gc-referenced-blobs">2<`,
-		`data-testid="gc-unreferenced-blobs">3<`,
-		fmt.Sprintf(`data-testid="gc-unreferenced-bytes">%s<`, dashboard.FormatBytes(seed.OrphanBytes)),
-	} {
-		if !strings.Contains(body, want) {
-			t.Fatalf("page missing %q", want)
-		}
-	}
-
-	// And: both action buttons exist with the plan's test ids and HTMX posts.
-	for _, want := range []string{
-		`data-testid="gc-dry-run-btn"`,
-		`data-testid="gc-run-btn"`,
-		`hx-post="/dashboard/gc/dry-run"`,
-		`hx-post="/dashboard/gc/run"`,
-		`hx-swap="innerHTML"`,
-	} {
-		if !strings.Contains(body, want) {
-			t.Fatalf("page missing %q", want)
-		}
-	}
-
-	// And: the run button carries the confirmation dialog with live counts.
-	confirm := fmt.Sprintf("This will delete 3 blobs, total %s. Continue?", dashboard.FormatBytes(seed.OrphanBytes))
-	if !strings.Contains(body, confirm) {
-		t.Fatalf("page missing confirm dialog %q", confirm)
-	}
-}
-
-func Test_serveDryRun_when_posted_then_listsExactlyUnreferenced(t *testing.T) {
-	// Given: the standard 5-blob fixture.
-	lock := gc.NewLock()
-	h, q, store := gcTestRouter(t, lock)
-	seed := gcTestSeedFive(t, q, store)
-
-	// When: the dry-run button posts.
-	rec := gcTestRequest(t, h, http.MethodPost, "/dashboard/gc/dry-run")
-
-	// Then: exactly the 3 orphan digests are listed with sizes.
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
-	}
-	body := rec.Body.String()
-	if n := strings.Count(body, `data-testid="gc-result-row"`); n != 3 {
-		t.Fatalf("listed %d rows, want 3", n)
-	}
-	for _, orphan := range seed.Orphans {
-		if !strings.Contains(body, orphan) {
-			t.Fatalf("dry-run listing missing %s", orphan)
-		}
-	}
-	for _, live := range []string{seed.Config, seed.Layer} {
-		if strings.Contains(body, live) {
-			t.Fatalf("dry-run listing leaked referenced blob %s", live)
-		}
-	}
-	if !strings.Contains(body, "would be deleted") {
-		t.Fatalf("missing dry-run heading in %q", body)
-	}
-
-	// And: nothing was deleted.
-	if n := store.blobCount(); n != 5 {
-		t.Fatalf("store holds %d blobs after dry run, want 5", n)
-	}
-
-	// And: the fragment has no page shell (it swaps into #gc-results).
-	// templ normalises the doctype to lowercase in rendered output.
-	if strings.Contains(body, "<!doctype html>") {
-		t.Fatal("HTMX dry-run response must be a fragment, not a full page")
-	}
 }

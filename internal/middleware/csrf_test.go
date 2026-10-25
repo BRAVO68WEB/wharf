@@ -156,7 +156,7 @@ func Test_CSRF_when_V2PrefixVariants_then_AllExempt(t *testing.T) {
 }
 
 // Test_CSRFToken_when_SetInContext_then_VisibleToTemplates pins the accessor
-// dashboard templates use to render the token into forms.
+// that reads the session-bound token back out of the request context.
 func Test_CSRFToken_when_SetInContext_then_VisibleToTemplates(t *testing.T) {
 	// Given: a context with a bound CSRF token.
 	req := httptest.NewRequest(http.MethodGet, "/dashboard", nil)

@@ -5,24 +5,18 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
-	"strings"
 	"time"
-
-	"github.com/go-chi/chi/v5"
 
 	"github.com/user/better-docker-registry/internal/api"
 	"github.com/user/better-docker-registry/internal/db"
 )
 
-// maxRetagFormBytes bounds the retag form body. Two short text fields do not
-// need more, and ParseForm must not read unbounded input (the login flow
-// caps its form the same way).
+// maxRetagFormBytes bounds the retag body. Two short text fields do not
+// need more, and the decoder must not read unbounded input.
 const maxRetagFormBytes = 8 << 10
 
-// RetagHandler serves the dashboard retag flow (plan task 21): copy the
-// manifest behind one tag to a new tag name — in this repository or another —
-// without touching the original tag. One source tag per request; there is no
-// bulk retag.
+// RetagHandler copies the manifest behind one tag to a new tag name. The
+// source tag is never touched. One source tag per request.
 type RetagHandler struct {
 	q db.Querier
 }
@@ -30,96 +24,6 @@ type RetagHandler struct {
 // NewRetagHandler returns a handler over the metadata recorded in q.
 func NewRetagHandler(q db.Querier) *RetagHandler {
 	return &RetagHandler{q: q}
-}
-
-// Mount registers the retag routes on r, a subrouter mounted at the repo
-// path prefix. Wrap r with CollapseRepoName so multi-segment repository
-// names reach the handler intact (same mount as the delete flows):
-//
-//	inner := chi.NewRouter()
-//	NewTagsHandler(q).Mount(inner)
-//	NewRetagHandler(q).Mount(inner)
-//	root.Mount("/dashboard/repos", CollapseRepoName(inner))
-//
-// GET renders the retag form for one tag; POST performs the copy.
-func (h *RetagHandler) Mount(r chi.Router) {
-	r.Get("/{name}/tags/{tag}/retag", h.retagForm)
-	r.Post("/{name}/tags/{tag}/retag", h.retag)
-}
-
-// retagFormData is the view model of the retag form: the source reference,
-// where the new tag goes, the CSRF token its hx-post carries, and the
-// validation message to show when the form must be fixed.
-type retagFormData struct {
-	RepoName   string
-	TagName    string
-	TargetRepo string
-	CSRFToken  string
-	Error      string
-}
-
-// retagForm renders the retag form for one source tag. The form is the
-// response body: it posts back to this URL with plain form semantics too
-// (method/action), so it works without HTMX as well.
-func (h *RetagHandler) retagForm(w http.ResponseWriter, r *http.Request) {
-	name, tag := RepoPathParam(r), chi.URLParam(r, "tag")
-	ctx := r.Context()
-	repo, err := h.q.GetRepositoryByName(ctx, name)
-	if errors.Is(err, sql.ErrNoRows) {
-		http.NotFound(w, r)
-		return
-	}
-	if err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-	if _, err := h.q.GetTag(ctx, db.GetTagParams{RepoID: repo.ID, Name: tag}); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			http.NotFound(w, r)
-			return
-		}
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-	_ = RetagForm(retagFormData{
-		RepoName:   name,
-		TagName:    tag,
-		TargetRepo: name,
-		CSRFToken:  sessionCSRF(r),
-	}).Render(ctx, w)
-}
-
-// retag copies the manifest behind one tag to a new tag name (plan task 21).
-// The source tag is never touched: this is a copy, not a move. The new tag
-// may live in this repository or in another one; across repositories the
-// manifest is copied too — what a push of the same manifest would write —
-// and an existing target tag is overwritten (UPSERT, as the plan defines).
-func (h *RetagHandler) retag(w http.ResponseWriter, r *http.Request) {
-	name, tag := RepoPathParam(r), chi.URLParam(r, "tag")
-	r.Body = http.MaxBytesReader(w, r.Body, maxRetagFormBytes)
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
-		return
-	}
-	newTag := strings.TrimSpace(r.FormValue("new_tag"))
-	targetName := strings.TrimSpace(r.FormValue("target_repo"))
-	dst, status, msg := h.copyTag(r, name, tag, targetName, newTag)
-	switch status {
-	case http.StatusOK:
-		h.retagRespond(w, r, dst)
-	case http.StatusBadRequest:
-		h.retagFormError(w, r, retagFormData{
-			RepoName:   name,
-			TagName:    tag,
-			TargetRepo: targetNameOr(targetName, name),
-			CSRFToken:  sessionCSRF(r),
-			Error:      msg,
-		})
-	case http.StatusNotFound:
-		http.NotFound(w, r)
-	default:
-		http.Error(w, "internal server error", status)
-	}
 }
 
 // copyTag copies the manifest behind tag onto newTag in targetName. An empty
@@ -172,13 +76,6 @@ func (h *RetagHandler) copyTag(r *http.Request, name, tag, targetName, newTag st
 	return dst.Name, http.StatusOK, ""
 }
 
-func targetNameOr(targetName, name string) string {
-	if targetName == "" {
-		return name
-	}
-	return targetName
-}
-
 // targetRepo resolves the repository a retag writes into, creating it when
 // it does not exist yet — the same upsert a manifest push performs, so
 // "retag into another repository" needs no prior push to that name.
@@ -188,32 +85,6 @@ func (h *RetagHandler) targetRepo(ctx context.Context, name string) (db.Reposito
 		return h.q.CreateRepository(ctx, name)
 	}
 	return repo, err
-}
-
-// retagFormError answers a retag whose form input must be fixed. HTMX
-// callers get the form back with the message (200 — HTMX swaps only 2xx, so
-// the operator sees what to fix); plain callers get a 400 with the reason.
-func (h *RetagHandler) retagFormError(w http.ResponseWriter, r *http.Request, data retagFormData) {
-	if isHTMX(r) {
-		_ = RetagForm(data).Render(r.Context(), w)
-		return
-	}
-	http.Error(w, data.Error, http.StatusBadRequest)
-}
-
-// retagRespond answers a completed retag by navigating to the target
-// repository's tag list, where the new tag is visible. HTMX callers get an
-// HX-Redirect for the same reason the logout flow does it: a 303 followed by
-// XHR would swap the tag-list page into the form's swap target instead of
-// navigating. Plain callers get the 303 itself.
-func (h *RetagHandler) retagRespond(w http.ResponseWriter, r *http.Request, targetName string) {
-	location := "/dashboard/repos/" + targetName
-	if isHTMX(r) {
-		w.Header().Set("HX-Redirect", location)
-		w.WriteHeader(http.StatusSeeOther)
-		return
-	}
-	http.Redirect(w, r, location, http.StatusSeeOther)
 }
 
 // manifestCopier copies a manifest and everything it references from the
@@ -274,8 +145,8 @@ func (c *manifestCopier) copyInto(ctx context.Context, m db.Manifest) error {
 
 // manifestBlobDigests lists the digests one manifest references: its config
 // and layers for an image manifest, its entries for an index — the exact set
-// a manifest PUT records in blob_refs (plan task 9). An unparseable payload
-// references nothing knowable and yields no edges.
+// a manifest PUT records in blob_refs. An unparseable payload references
+// nothing knowable and yields no edges.
 func manifestBlobDigests(m db.Manifest) []string {
 	d := parseManifest(m)
 	digests := make([]string, 0, 1+len(d.Layers))

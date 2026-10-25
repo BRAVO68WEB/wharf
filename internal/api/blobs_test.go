@@ -7,15 +7,25 @@ import (
 	"testing"
 
 	"github.com/user/better-docker-registry/internal/api"
+	"github.com/user/better-docker-registry/internal/db"
 	"github.com/user/better-docker-registry/internal/storage"
 )
+
+func blobRouter(t *testing.T, store *fakeStorage, repo, digest string) (http.Handler, db.Querier) {
+	t.Helper()
+	q := newTestQueries(t)
+	if digest != "" {
+		seedBlobRef(t, q, repo, digest)
+	}
+	return api.NewRouter(store, q), q
+}
 
 func Test_GetBlob_when_Exists_then_StreamsExactBytesWithHeaders(t *testing.T) {
 	// Given: a stored 1000-byte blob
 	store := newFakeStorage()
 	data := bytes.Repeat([]byte("0123456789"), 100)
 	digest := store.seed(data)
-	router := api.NewRouter(store, newTestQueries(t))
+	router, _ := blobRouter(t, store, "test", digest)
 
 	// When: the blob is fetched
 	rec := serve(t, router, http.MethodGet, "/v2/test/blobs/"+digest, nil)
@@ -40,7 +50,7 @@ func Test_GetBlob_when_NestedRepoName_then_StreamsBytes(t *testing.T) {
 	store := newFakeStorage()
 	data := []byte("nested")
 	digest := store.seed(data)
-	router := api.NewRouter(store, newTestQueries(t))
+	router, _ := blobRouter(t, store, "library/nginx", digest)
 
 	// When: the blob is fetched under library/nginx
 	rec := serve(t, router, http.MethodGet, "/v2/library/nginx/blobs/"+digest, nil)
@@ -59,7 +69,7 @@ func Test_GetBlob_when_NameContainsOpSegment_then_StreamsBytes(t *testing.T) {
 	store := newFakeStorage()
 	data := []byte("op-in-name")
 	digest := store.seed(data)
-	router := api.NewRouter(store, newTestQueries(t))
+	router, _ := blobRouter(t, store, "acme/blobs", digest)
 
 	// When: its blob is fetched
 	rec := serve(t, router, http.MethodGet, "/v2/acme/blobs/blobs/"+digest, nil)
@@ -131,8 +141,8 @@ func Test_GetBlob_when_StorageUnavailable_then_503Unavailable(t *testing.T) {
 	// Given: a storage backend that cannot serve the request
 	store := newFakeStorage()
 	store.fail = fmt.Errorf("disk on fire: %w", storage.ErrStorageUnavailable)
-	router := api.NewRouter(store, newTestQueries(t))
 	digest := digestOf([]byte("unreachable"))
+	router, _ := blobRouter(t, store, "test", digest)
 
 	// When: a blob is fetched
 	rec := serve(t, router, http.MethodGet, "/v2/test/blobs/"+digest, nil)
@@ -151,7 +161,7 @@ func Test_HeadBlob_when_Exists_then_HeadersWithoutBody(t *testing.T) {
 	store := newFakeStorage()
 	data := bytes.Repeat([]byte("x"), 1000)
 	digest := store.seed(data)
-	router := api.NewRouter(store, newTestQueries(t))
+	router, _ := blobRouter(t, store, "test", digest)
 
 	// When: the blob is headed
 	rec := serve(t, router, http.MethodHead, "/v2/test/blobs/"+digest, nil)
@@ -186,25 +196,60 @@ func Test_HeadBlob_when_BlobMissing_then_404BlobUnknown(t *testing.T) {
 	}
 }
 
-func Test_DeleteBlob_when_Exists_then_202AndBlobGone(t *testing.T) {
-	// Given: a stored blob
+func Test_DeleteBlob_when_Shared_then_202DropsOnlyThatRef(t *testing.T) {
+	// Given: one blob referenced by two repositories
 	store := newFakeStorage()
-	digest := store.seed([]byte("delete me"))
-	router := api.NewRouter(store, newTestQueries(t))
+	data := []byte("shared layer")
+	digest := store.seed(data)
+	q := newTestQueries(t)
+	seedBlobRef(t, q, "test", digest)
+	seedBlobRef(t, q, "other", digest)
+	router := api.NewRouter(store, q)
 
-	// When: the blob is deleted
+	// When: test drops its reference
 	rec := serve(t, router, http.MethodDelete, "/v2/test/blobs/"+digest, nil)
 
-	// Then: 202 Accepted and the blob is gone
+	// Then: 202, the bytes remain, test can no longer read them, other can
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want %d (body %s)", rec.Code, http.StatusAccepted, rec.Body.String())
 	}
 	assertHeader(t, rec.Header(), "Docker-Content-Digest", digest)
 	assertHeader(t, rec.Header(), storage.HeaderAPIVersion, storage.APIVersion)
+	exists, err := store.Exists(t.Context(), digest)
+	if err != nil || !exists {
+		t.Fatalf("object exists = %v, %v; want true, nil", exists, err)
+	}
+	gone := serve(t, router, http.MethodGet, "/v2/test/blobs/"+digest, nil)
+	if gone.Code != http.StatusNotFound {
+		t.Fatalf("GET test after DELETE = %d, want %d", gone.Code, http.StatusNotFound)
+	}
+	kept := serve(t, router, http.MethodGet, "/v2/other/blobs/"+digest, nil)
+	if kept.Code != http.StatusOK || !bytes.Equal(kept.Body.Bytes(), data) {
+		t.Fatalf("GET other = %d body %q", kept.Code, kept.Body.Bytes())
+	}
+}
 
-	again := serve(t, router, http.MethodGet, "/v2/test/blobs/"+digest, nil)
-	if again.Code != http.StatusNotFound {
-		t.Fatalf("GET after DELETE status = %d, want %d", again.Code, http.StatusNotFound)
+func Test_DeleteBlob_when_Unreferenced_then_404AndFileRemains(t *testing.T) {
+	// Given: a stored blob that test does not reference
+	store := newFakeStorage()
+	digest := store.seed([]byte("not mine"))
+	q := newTestQueries(t)
+	seedBlobRef(t, q, "other", digest)
+	router := api.NewRouter(store, q)
+
+	// When: test tries to delete it
+	rec := serve(t, router, http.MethodDelete, "/v2/test/blobs/"+digest, nil)
+
+	// Then: 404 and the other repository's bytes are untouched
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d (body %s)", rec.Code, http.StatusNotFound, rec.Body.String())
+	}
+	if code := decodeErrors(t, rec).Errors[0].Code; code != storage.ErrorCodeBlobUnknown {
+		t.Fatalf("error code = %s, want %s", code, storage.ErrorCodeBlobUnknown)
+	}
+	exists, err := store.Exists(t.Context(), digest)
+	if err != nil || !exists {
+		t.Fatalf("object exists = %v, %v; want true, nil", exists, err)
 	}
 }
 

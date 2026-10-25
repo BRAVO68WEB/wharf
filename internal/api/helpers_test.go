@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +15,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/user/better-docker-registry/internal/db"
 	"github.com/user/better-docker-registry/internal/storage"
 )
 
@@ -30,6 +33,22 @@ var _ storage.Storage = (*fakeStorage)(nil)
 
 func newFakeStorage() *fakeStorage {
 	return &fakeStorage{blobs: make(map[string][]byte)}
+}
+
+// seedBlobRef records that repoName uses digest. The repository row is
+// created when it does not exist yet.
+func seedBlobRef(t *testing.T, q db.Querier, repoName, digest string) {
+	t.Helper()
+	repo, err := q.GetRepositoryByName(t.Context(), repoName)
+	if errors.Is(err, sql.ErrNoRows) {
+		repo, err = q.CreateRepository(t.Context(), repoName)
+	}
+	if err != nil {
+		t.Fatalf("repository %s: %v", repoName, err)
+	}
+	if err := q.AddBlobRef(t.Context(), db.AddBlobRefParams{Digest: digest, RepoID: repo.ID}); err != nil {
+		t.Fatalf("AddBlobRef %s %s: %v", repoName, digest, err)
+	}
 }
 
 func digestOf(b []byte) string {

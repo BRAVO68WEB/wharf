@@ -81,8 +81,16 @@ func NewSessionManager(q db.Querier, cfg config.SessionConfig, cookieSecure bool
 	return &SessionManager{q: q, secret: secret, ttl: ttl, cookieSecure: cookieSecure}, nil
 }
 
+// sessionLoginURL is the absolute login URL for the request's own host.
+func sessionLoginURL(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	return scheme + "://" + r.Host + SessionLoginPath
+}
+
 func (m *SessionManager) Mount(r chi.Router) {
-	r.Get(SessionLoginPath, m.HandleLoginPage)
 	r.Post(SessionLoginPath, m.HandleLogin)
 	r.Post(SessionLogoutPath, m.HandleLogout)
 }
@@ -154,17 +162,10 @@ func (m *SessionManager) startSession(r *http.Request, username, password string
 	return openedSession{token: token, username: user.Username, admin: user.IsAdmin, expires: expiresAt}, http.StatusOK
 }
 
-// HandleLogout ends the session: deletes the row and clears the cookie.
-// HTMX callers get an HX-Redirect for the same reason denySession does it: a
-// 303 followed by XHR swaps the login page into the calling element instead of
-// navigating the browser.
+// HandleLogout ends the session: deletes the row and clears the cookie, then
+// sends the browser to the login page.
 func (m *SessionManager) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	m.endSession(w, r)
-	if r.Header.Get("HX-Request") == "true" {
-		w.Header().Set("HX-Redirect", SessionLoginPath)
-		w.WriteHeader(http.StatusSeeOther)
-		return
-	}
 	http.Redirect(w, r, sessionLoginURL(r), http.StatusSeeOther)
 }
 
@@ -264,19 +265,12 @@ func (m *SessionManager) endSession(w http.ResponseWriter, r *http.Request) {
 }
 
 // denySession sends the client to the login page. Dashboard JSON calls get
-// 401 JSON instead: a redirect would make fetch follow into HTML. HTMX
-// requests get an HX-Redirect: a 302 followed by XHR would swap the login
-// page into the calling element instead of navigating the browser.
+// 401 JSON instead: a redirect would make fetch follow into HTML.
 func (m *SessionManager) denySession(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/dashboard/api" || strings.HasPrefix(r.URL.Path, "/dashboard/api/") {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte(`{"error":"unauthenticated"}` + "\n"))
-		return
-	}
-	if r.Header.Get("HX-Request") == "true" {
-		w.Header().Set("HX-Redirect", SessionLoginPath)
-		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 	http.Redirect(w, r, sessionLoginURL(r), http.StatusFound)

@@ -9,12 +9,13 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/user/better-docker-registry/internal/db"
+	"github.com/user/better-docker-registry/internal/repopath"
 	"github.com/user/better-docker-registry/internal/storage"
 )
 
 // NewRouter builds the registry API route tree: every endpoint the Docker and
 // OCI clients address under /v2. The tree carries no dashboard middleware; the
-// HTMX dashboard mounts separately (see the integrating task).
+// dashboard JSON API mounts on its own router.
 //
 // Repository names may contain slashes ("library/nginx"), which a chi path
 // parameter cannot capture. collapseRepoName therefore rewrites the routing
@@ -93,11 +94,6 @@ func WithAPIVersion(next http.Handler) http.Handler {
 	})
 }
 
-// repoOpSegments are the path segments that end a repository name in a /v2
-// URL. The name runs up to the LAST of these, so a repository name may itself
-// contain "blobs", "manifests", "tags" or "referrers" segments.
-var repoOpSegments = []string{"/blobs/", "/manifests/", "/tags/", "/referrers/"}
-
 // collapseRepoName rewrites the /v2-relative routing path of a request so the
 // repository name is one path segment. The request itself is untouched:
 // handlers recover the name with RepoName.
@@ -116,20 +112,15 @@ func collapseRepoName(next http.Handler) http.Handler {
 // "/{escaped name}/blobs/{digest}". It reports false when the path names no
 // operation (the catalog) or no repository at all; those route unchanged.
 func collapseRepoPath(path string) (string, bool) {
-	cut := -1
-	for _, seg := range repoOpSegments {
-		if i := strings.LastIndex(path, seg); i > cut {
-			cut = i
-		}
-	}
-	if cut <= 0 {
+	name, ok := repopath.Name(path)
+	if !ok {
 		return path, false
 	}
-	name := path[1:cut]
-	if name == "" {
+	suffix, ok := repopath.Suffix(path)
+	if !ok {
 		return path, false
 	}
-	return "/" + url.PathEscape(name) + path[cut:], true
+	return "/" + url.PathEscape(name) + suffix, true
 }
 
 // RepoName returns the repository name of the matched /v2 route, with the

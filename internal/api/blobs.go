@@ -11,9 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/user/better-docker-registry/internal/auth"
 	"github.com/user/better-docker-registry/internal/db"
-	"github.com/user/better-docker-registry/internal/middleware"
 	"github.com/user/better-docker-registry/internal/storage"
 )
 
@@ -55,7 +53,7 @@ func (h *BlobHandler) serveBlob(w http.ResponseWriter, r *http.Request, sendBody
 	if !ok {
 		return
 	}
-	if !h.anonymousMayRead(w, r, digest) {
+	if _, ok := h.repoHoldsBlob(w, r, digest); !ok {
 		return
 	}
 
@@ -114,45 +112,47 @@ func (h *BlobHandler) serveBlob(w http.ResponseWriter, r *http.Request, sendBody
 	}
 }
 
-// anonymousMayRead reports whether an anonymous pull token may read this
-// blob through this repository. Signed-in requests are unchanged. A blob that
-// this repository does not reference is unknown, so a public repository is
-// not a window onto every blob in the store.
-func (h *BlobHandler) anonymousMayRead(w http.ResponseWriter, r *http.Request, digest string) bool {
-	subject, ok := middleware.AuthUser(r.Context())
-	if !ok || subject != auth.AnonymousSubject {
-		return true
-	}
+// repoHoldsBlob reports whether this repository references digest. Every
+// read and delete goes through it, so one repository is not a window onto
+// blobs it does not use. The bytes stay until garbage collection; delete
+// only drops this repository's reference.
+func (h *BlobHandler) repoHoldsBlob(w http.ResponseWriter, r *http.Request, digest string) (int64, bool) {
 	repo, err := h.q.GetRepositoryByName(r.Context(), RepoName(r))
 	if errors.Is(err, sql.ErrNoRows) {
-		WriteError(w, storage.NewError(storage.ErrorCodeBlobUnknown, "blob unknown to registry"))
-		return false
+		WriteError(w, storage.NewError(storage.ErrorCodeBlobUnknown, "blob unknown to the registry"))
+		return 0, false
 	}
 	if err != nil {
 		WriteError(w, internalFailure())
-		return false
+		return 0, false
 	}
 	_, err = h.q.GetBlobRef(r.Context(), db.GetBlobRefParams{Digest: digest, RepoID: repo.ID})
 	if errors.Is(err, sql.ErrNoRows) {
-		WriteError(w, storage.NewError(storage.ErrorCodeBlobUnknown, "blob unknown to registry"))
-		return false
+		WriteError(w, storage.NewError(storage.ErrorCodeBlobUnknown, "blob unknown to the registry"))
+		return 0, false
 	}
 	if err != nil {
 		WriteError(w, internalFailure())
-		return false
+		return 0, false
 	}
-	return true
+	return repo.ID, true
 }
 
-// deleteBlob removes a blob and answers 202 Accepted. Whether the blob is
-// still referenced is the GC's business, not this route's.
+// deleteBlob drops this repository's reference to the blob and answers
+// 202 Accepted. The object stays. Another repository may still use that
+// digest, and garbage collection removes the bytes only when no reference
+// remains.
 func (h *BlobHandler) deleteBlob(w http.ResponseWriter, r *http.Request) {
 	digest, ok := blobParams(w, r)
 	if !ok {
 		return
 	}
-	if err := h.store.Delete(r.Context(), digest); err != nil {
-		WriteError(w, StorageError(err))
+	repoID, ok := h.repoHoldsBlob(w, r, digest)
+	if !ok {
+		return
+	}
+	if err := h.q.DeleteBlobRef(r.Context(), db.DeleteBlobRefParams{Digest: digest, RepoID: repoID}); err != nil {
+		WriteError(w, internalFailure())
 		return
 	}
 	w.Header().Set("Docker-Content-Digest", digest)

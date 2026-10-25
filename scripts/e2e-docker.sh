@@ -36,7 +36,7 @@ docker build -t bdr-e2e "$ROOT"
 make -C "$ROOT" build
 openssl genrsa -out "$RUN_DIR/jwt_private.pem" 2048 2>/dev/null
 
-export REGISTRY_SESSION_SECRET=e2e-session-secret
+export REGISTRY_SESSION_SECRET=e2e-session-secret-padding-32b!!
 cat >"$RUN_DIR/config.yml" <<EOF
 server:
   port: 5000

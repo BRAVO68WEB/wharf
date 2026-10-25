@@ -52,7 +52,7 @@ logging:
 
 func loadYAML(t *testing.T, raw string) (*Config, error) {
 	t.Helper()
-	t.Setenv("REGISTRY_SESSION_SECRET", "test-session-secret")
+	t.Setenv("REGISTRY_SESSION_SECRET", "test-session-secret-32bytes-long")
 	path := filepath.Join(t.TempDir(), "config.yml")
 	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -69,7 +69,7 @@ func mutate(raw string, repl ...[2]string) string {
 
 func TestLoad_ValidConfig(t *testing.T) {
 	// Given: the shipped sample config and its session-secret env var
-	t.Setenv("REGISTRY_SESSION_SECRET", "test-session-secret")
+	t.Setenv("REGISTRY_SESSION_SECRET", "test-session-secret-32bytes-long")
 	sample := filepath.Join("..", "..", "testdata", "config.yml")
 
 	// When: Load runs
@@ -103,7 +103,7 @@ func TestLoad_ValidConfig(t *testing.T) {
 	if cfg.Auth.Session.TTL.Duration() != 24*time.Hour {
 		t.Errorf("Auth.Session.TTL = %v, want 24h", cfg.Auth.Session.TTL.Duration())
 	}
-	if cfg.Auth.Session.Secret.Reveal() != "test-session-secret" {
+	if cfg.Auth.Session.Secret.Reveal() != "test-session-secret-32bytes-long" {
 		t.Error("Auth.Session.Secret not resolved from env")
 	}
 	host, err := cfg.Server.PullHost()
@@ -118,6 +118,19 @@ func TestLoad_ValidConfig(t *testing.T) {
 	host, err = cfg.Server.PullHost()
 	if err != nil || host != "registry.example.com:5000" {
 		t.Errorf("PullHost() = %q, %v; want registry.example.com:5000", host, err)
+	}
+	origin, https := cfg.Server.ExternalOrigin()
+	if origin != "https://registry.example.com:5000" || !https {
+		t.Errorf("ExternalOrigin() = %q, %v", origin, https)
+	}
+	plain := mutate(validYAML, [2]string{"max_upload_size: 0", "max_upload_size: 0\n  public_url: http://registry.example.com"})
+	cfg, err = loadYAML(t, plain)
+	if err != nil {
+		t.Fatalf("Load(http public_url) error = %v", err)
+	}
+	origin, https = cfg.Server.ExternalOrigin()
+	if origin != "http://registry.example.com" || https {
+		t.Errorf("ExternalOrigin() = %q, %v; want http and not secure", origin, https)
 	}
 	if cfg.GC.BatchSize != 256 || cfg.Logging.Level != LogInfo {
 		t.Errorf("GC/Logging = %d/%q, want 256/info", cfg.GC.BatchSize, cfg.Logging.Level)
@@ -146,6 +159,7 @@ func TestLoad_ValidationErrors(t *testing.T) {
 		{"zero port", [][2]string{{"port: 5000", "port: 0"}}, "server.port"},
 		{"public url with a path", [][2]string{{"max_upload_size: 0", "max_upload_size: 0\n  public_url: https://registry.example.com/v2"}}, "server.public_url must not include a path"},
 		{"public url without a scheme", [][2]string{{"max_upload_size: 0", "max_upload_size: 0\n  public_url: registry.example.com"}}, "server.public_url must be an absolute"},
+		{"dev anonymous on a public host", [][2]string{{"auth:\n  jwt:", "auth:\n  dev_anonymous: true\n  jwt:"}, {"max_upload_size: 0", "max_upload_size: 0\n  public_url: https://registry.example.com"}}, "auth.dev_anonymous"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -163,6 +177,18 @@ func TestLoad_ValidationErrors(t *testing.T) {
 				t.Errorf("Load() error = %q, want substring %q", err, tc.wantErr)
 			}
 		})
+	}
+}
+
+func TestLoad_ShortSessionSecret(t *testing.T) {
+	t.Setenv("REGISTRY_SESSION_SECRET", "too-short")
+	path := filepath.Join(t.TempDir(), "config.yml")
+	if err := os.WriteFile(path, []byte(validYAML), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Load(path)
+	if err == nil || !strings.Contains(err.Error(), "at least 32 bytes") {
+		t.Fatalf("Load() error = %v", err)
 	}
 }
 
@@ -216,11 +242,11 @@ func TestLoad_SecretRedaction(t *testing.T) {
 	// When: the config is formatted for logs
 	for _, out := range []string{fmt.Sprintf("%v", cfg), fmt.Sprintf("%+v", cfg), fmt.Sprintf("%#v", cfg), cfg.Auth.Session.Secret.String()} {
 		// Then: the secret value never appears
-		if strings.Contains(out, "test-session-secret") {
+		if strings.Contains(out, "test-session-secret-32bytes-long") {
 			t.Fatalf("secret leaked into formatted output: %s", out)
 		}
 	}
-	if cfg.Auth.Session.Secret.Reveal() != "test-session-secret" {
+	if cfg.Auth.Session.Secret.Reveal() != "test-session-secret-32bytes-long" {
 		t.Error("Reveal() must return the raw secret")
 	}
 }
@@ -260,7 +286,7 @@ func TestLoad_InvalidConfigExitsOne(t *testing.T) {
 
 	// When: the process loads it
 	cmd := exec.Command("go", "run", "../../cmd/registry", "--config", path)
-	cmd.Env = append(os.Environ(), "REGISTRY_SESSION_SECRET=test-session-secret")
+	cmd.Env = append(os.Environ(), "REGISTRY_SESSION_SECRET=test-session-secret-32bytes-long")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	err := cmd.Run()

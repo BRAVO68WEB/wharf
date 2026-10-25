@@ -22,6 +22,7 @@ import (
 // to the /dashboard mount: /api/repos for the catalog, /api/repo/{name} for
 // one repository, and /api/gc. The SPA file server must not answer these.
 type HTTPAPI struct {
+	sqlDB    *sql.DB
 	q        db.Querier
 	store    storage.Storage
 	gc       *GCHandler
@@ -36,8 +37,9 @@ type HTTPAPI struct {
 
 // NewHTTPAPI returns the dashboard JSON API. lock is the same quiesce lock
 // /v2 writes use, so a collection still refuses overlapping registry writes.
-func NewHTTPAPI(q db.Querier, store storage.Storage, lock *gc.Lock, runnerOpts ...gc.RunnerOption) *HTTPAPI {
+func NewHTTPAPI(sqlDB *sql.DB, q db.Querier, store storage.Storage, lock *gc.Lock, runnerOpts ...gc.RunnerOption) *HTTPAPI {
 	return &HTTPAPI{
+		sqlDB:    sqlDB,
 		q:        q,
 		store:    store,
 		gc:       NewGCHandler(q, store, lock, runnerOpts...),
@@ -381,6 +383,10 @@ func (h *HTTPAPI) attachPull(item *repoJSON, tag string) {
 	item.LatestTag = tag
 	item.PullHost = h.pullHost
 }
+
+// maxTagRows bounds one repository's tag list. The registry /tags/list
+// endpoint is the bulk surface.
+const maxTagRows = 500
 
 type tagJSON struct {
 	Name      string    `json:"name"`

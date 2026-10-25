@@ -7,8 +7,8 @@ import (
 )
 
 // CSRFHeader is the request header carrying the CSRF token on state-changing
-// dashboard requests. The dashboard renders the session-bound token into its
-// forms/HTMX headers; this middleware verifies it on the way back in.
+// dashboard requests. The SPA sends the session-bound token in this header;
+// this middleware verifies it on the way back in.
 const CSRFHeader = "X-CSRF-Token"
 
 type csrfTokenKey struct{}
@@ -21,7 +21,6 @@ func WithCSRFToken(ctx context.Context, token string) context.Context {
 }
 
 // CSRFToken returns the CSRF token bound to the request's session, if any.
-// Dashboard templates use it to render the token into forms.
 func CSRFToken(ctx context.Context) (string, bool) {
 	token, ok := ctx.Value(csrfTokenKey{}).(string)
 	return token, ok && token != ""

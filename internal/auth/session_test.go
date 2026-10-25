@@ -173,6 +173,12 @@ func Test_LoginSetsSignedHttpOnlyCookie_when_CredentialsValid(t *testing.T) {
 	if !c.Secure {
 		t.Error("cookie is not Secure")
 	}
+	plain, plainDB := newSessionTestManager(t, time.Hour, false)
+	newSessionTestUser(t, plainDB, "bob", "s3cret", false)
+	plainResp := sessionPostForm(t, newSessionTestMux(plain), auth.SessionLoginPath, url.Values{"username": {"bob"}, "password": {"s3cret"}})
+	if sessionCookie(t, plainResp).Secure {
+		t.Error("cookie is Secure when the registry is reached over HTTP")
+	}
 	if c.Path != "/" {
 		t.Errorf("Path = %q, want %q", c.Path, "/")
 	}

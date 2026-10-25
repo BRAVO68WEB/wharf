@@ -192,7 +192,7 @@ func Test_ManagerConstructionFails_when_TTLInvalid(t *testing.T) {
 func Test_SecretComesFromEnvVar_when_ConfigLoaded(t *testing.T) {
 	// Given: a config file naming an env var for the session secret and that
 	// variable set in the environment — the secret never appears in YAML.
-	t.Setenv("BDR_TEST_SESSION_SECRET", "env-derived-signing-secret")
+	t.Setenv("BDR_TEST_SESSION_SECRET", "env-derived-signing-secret-pad!!!")
 	path := filepath.Join(t.TempDir(), "config.yml")
 	err := os.WriteFile(path, []byte(`
 server: {port: 5000}

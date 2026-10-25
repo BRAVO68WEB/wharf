@@ -28,7 +28,7 @@ func apiTestRouter(t *testing.T) (http.Handler, db.Querier, *gcTestStore) {
 	q := db.New(sqlDB)
 	store := newGCTestStore()
 	r := chi.NewRouter()
-	api := dashboard.NewHTTPAPI(q, store, gc.NewLock())
+	api := dashboard.NewHTTPAPI(sqlDB, q, store, gc.NewLock())
 	api.MountPublic(r)
 	api.Mount(r)
 	return r, q, store
@@ -49,7 +49,7 @@ func TestAPI_pullHost_omittedUntilConfigured(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = sqlDB.Close() })
 	q = db.New(sqlDB)
-	api := dashboard.NewHTTPAPI(q, newGCTestStore(), gc.NewLock())
+	api := dashboard.NewHTTPAPI(sqlDB, q, newGCTestStore(), gc.NewLock())
 	api.SetPullHost("registry.example.com:5000")
 	api.Mount(r)
 	api.MountPublic(r)
@@ -330,7 +330,7 @@ func TestAPI_gcStats_configuredInterval(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = sqlDB.Close() })
-	api := dashboard.NewHTTPAPI(db.New(sqlDB), newGCTestStore(), gc.NewLock())
+	api := dashboard.NewHTTPAPI(sqlDB, db.New(sqlDB), newGCTestStore(), gc.NewLock())
 	api.SetGCInterval(90 * time.Minute)
 	r := chi.NewRouter()
 	api.Mount(r)

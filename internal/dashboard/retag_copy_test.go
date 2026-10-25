@@ -1,18 +1,19 @@
 package dashboard_test
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/user/better-docker-registry/internal/db"
-	"github.com/user/better-docker-registry/internal/middleware"
 )
 
-// Cross-repository and overwrite coverage for the retag flow (plan task 21):
-// a retag to another repository copies the manifest row and its blob_refs
-// edges (what a push of the same manifest would write), creating the target
-// repository when it does not exist yet, and an existing target tag is
-// overwritten (UPSERT semantics, per the plan's QA note).
+// Cross-repository and overwrite coverage for the retag flow: a retag to
+// another repository copies the manifest row and its blob_refs edges (what a
+// push of the same manifest would write), creating the target repository when
+// it does not exist yet, and an existing target tag is overwritten.
 
 // retagTestDigests returns the digests manifestTestImagePayload references:
 // its config and its two layers.
@@ -24,25 +25,25 @@ func retagTestDigests() []string {
 	}
 }
 
+func retagAPI(t *testing.T, h http.Handler, repo, tag, targetRepo, targetTag string) *httptest.ResponseRecorder {
+	t.Helper()
+	body := fmt.Sprintf(`{"targetRepo":%q,"targetTag":%q}`, targetRepo, targetTag)
+	return apiDo(t, h, http.MethodPost, "/api/repo/"+repo+"/tags/"+tag+"/retag", body)
+}
+
 // Given: repo "test" with one image manifest tagged "latest".
 // When:  retagging to "v1.0" in the repo "other".
 // Then:  "other" is created, the manifest row and its blob_refs edges are
 // copied over, "other:v1.0" resolves, and "test:latest" is unchanged.
 func Test_retag_when_targetRepoDiffers_then_manifestAndRefsCopied(t *testing.T) {
-	h, q := retagTestRouter(t)
+	h, q, _ := apiTestRouter(t)
 	ctx := t.Context()
 	digest := manifestTestSeed(t, q, "test", manifestTestImagePayload,
 		"application/vnd.docker.distribution.manifest.v2+json")
 
-	rec := retagTestPOST(t, h, "/dashboard/repos/test/tags/latest/retag",
-		map[string]string{"new_tag": "v1.0", "target_repo": "other"},
-		map[string]string{middleware.CSRFHeader: gcTestCSRFToken, "HX-Request": "true"},
-	)
-	if rec.Code != 303 {
-		t.Fatalf("status = %d, want 303; body=%s", rec.Code, rec.Body)
-	}
-	if got := rec.Header().Get("HX-Redirect"); got != "/dashboard/repos/other" {
-		t.Errorf("HX-Redirect = %q, want /dashboard/repos/other", got)
+	rec := retagAPI(t, h, "test", "latest", "other", "v1.0")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body)
 	}
 
 	other, err := q.GetRepositoryByName(ctx, "other")
@@ -94,7 +95,7 @@ func Test_retag_when_targetRepoDiffers_then_manifestAndRefsCopied(t *testing.T) 
 // Then:  the existing tag is overwritten (UPSERT) to the source digest and
 // the source tag stays where it was.
 func Test_retag_when_targetTagExists_then_upserts(t *testing.T) {
-	h, q := retagTestRouter(t)
+	h, q, _ := apiTestRouter(t)
 	ctx := t.Context()
 	srcDigest := manifestTestSeed(t, q, "test", manifestTestImagePayload,
 		"application/vnd.docker.distribution.manifest.v2+json")
@@ -122,12 +123,9 @@ func Test_retag_when_targetTagExists_then_upserts(t *testing.T) {
 		t.Fatalf("SetTag: %v", err)
 	}
 
-	rec := retagTestPOST(t, h, "/dashboard/repos/test/tags/latest/retag",
-		map[string]string{"new_tag": "v1.0", "target_repo": "test"},
-		map[string]string{middleware.CSRFHeader: gcTestCSRFToken, "HX-Request": "true"},
-	)
-	if rec.Code != 303 {
-		t.Fatalf("status = %d, want 303; body=%s", rec.Code, rec.Body)
+	rec := retagAPI(t, h, "test", "latest", "test", "v1.0")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body)
 	}
 
 	tag, err := q.GetTag(ctx, db.GetTagParams{RepoID: repo.ID, Name: "v1.0"})
@@ -151,17 +149,14 @@ func Test_retag_when_targetTagExists_then_upserts(t *testing.T) {
 // Then:  the repository is created (push semantics) and the new tag resolves
 // inside it.
 func Test_retag_when_targetRepoMissing_then_created(t *testing.T) {
-	h, q := retagTestRouter(t)
+	h, q, _ := apiTestRouter(t)
 	ctx := t.Context()
 	digest := manifestTestSeed(t, q, "test", manifestTestImagePayload,
 		"application/vnd.docker.distribution.manifest.v2+json")
 
-	rec := retagTestPOST(t, h, "/dashboard/repos/test/tags/latest/retag",
-		map[string]string{"new_tag": "stable", "target_repo": "team/app"},
-		map[string]string{middleware.CSRFHeader: gcTestCSRFToken, "HX-Request": "true"},
-	)
-	if rec.Code != 303 {
-		t.Fatalf("status = %d, want 303; body=%s", rec.Code, rec.Body)
+	rec := retagAPI(t, h, "test", "latest", "team/app", "stable")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body)
 	}
 
 	other, err := q.GetRepositoryByName(ctx, "team/app")
@@ -182,7 +177,7 @@ func Test_retag_when_targetRepoMissing_then_created(t *testing.T) {
 // Then:  the existing manifest row is left alone (no clobber) and only the
 // new tag is written.
 func Test_retag_when_targetAlreadyHasManifest_then_rowLeftAlone(t *testing.T) {
-	h, q := retagTestRouter(t)
+	h, q, _ := apiTestRouter(t)
 	ctx := t.Context()
 	digest := manifestTestSeed(t, q, "test", manifestTestImagePayload,
 		"application/vnd.docker.distribution.manifest.v2+json")
@@ -201,12 +196,9 @@ func Test_retag_when_targetAlreadyHasManifest_then_rowLeftAlone(t *testing.T) {
 		t.Fatalf("UpsertManifest: %v", err)
 	}
 
-	rec := retagTestPOST(t, h, "/dashboard/repos/test/tags/latest/retag",
-		map[string]string{"new_tag": "v1.0", "target_repo": "other"},
-		map[string]string{middleware.CSRFHeader: gcTestCSRFToken, "HX-Request": "true"},
-	)
-	if rec.Code != 303 {
-		t.Fatalf("status = %d, want 303; body=%s", rec.Code, rec.Body)
+	rec := retagAPI(t, h, "test", "latest", "other", "v1.0")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body)
 	}
 
 	kept, err := q.GetManifest(ctx, db.GetManifestParams{RepoID: other.ID, Digest: digest})
@@ -227,7 +219,7 @@ func Test_retag_when_targetAlreadyHasManifest_then_rowLeftAlone(t *testing.T) {
 // Then:  the child manifest rows are copied too, so the destination can
 // serve the whole image, not just the index.
 func Test_retag_when_indexManifest_then_childrenCopied(t *testing.T) {
-	h, q := retagTestRouter(t)
+	h, q, _ := apiTestRouter(t)
 	ctx := t.Context()
 	indexDigest := manifestTestSeed(t, q, "test", manifestTestIndexPayload,
 		"application/vnd.oci.image.index.v1+json")
@@ -252,12 +244,9 @@ func Test_retag_when_indexManifest_then_childrenCopied(t *testing.T) {
 		}
 	}
 
-	rec := retagTestPOST(t, h, "/dashboard/repos/test/tags/latest/retag",
-		map[string]string{"new_tag": "v1.0", "target_repo": "other"},
-		map[string]string{middleware.CSRFHeader: gcTestCSRFToken, "HX-Request": "true"},
-	)
-	if rec.Code != 303 {
-		t.Fatalf("status = %d, want 303; body=%s", rec.Code, rec.Body)
+	rec := retagAPI(t, h, "test", "latest", "other", "v1.0")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body)
 	}
 
 	other, err := q.GetRepositoryByName(ctx, "other")

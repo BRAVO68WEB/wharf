@@ -90,8 +90,8 @@ type Querier interface {
 	ListReposForBlob(ctx context.Context, digest string) ([]int64, error)
 	ListRepositories(ctx context.Context, arg ListRepositoriesParams) ([]Repository, error)
 	ListRepositoriesFromStart(ctx context.Context, limit int64) ([]Repository, error)
-	// Dashboard read models (task 15). Read-only cross-table queries for the HTMX
-	// UI; writes stay in the per-table query files.
+	// Dashboard read models (task 15). Read-only cross-table queries for the
+	// dashboard; writes stay in the per-table query files.
 	//
 	// The filter takes a LIKE pattern built by the caller (internal/dashboard),
 	// which escapes `%`/`_`/`\` in the operator's search text so the box matches

@@ -101,6 +101,21 @@ func (s ServerConfig) PullHost() (string, error) {
 	return u.Host, nil
 }
 
+// ExternalOrigin is the scheme and host of PublicURL, with no path.
+// https reports whether clients reach the registry over TLS. An empty
+// PublicURL returns an empty origin and https false; the caller then
+// derives the realm from the request.
+func (s ServerConfig) ExternalOrigin() (origin string, https bool) {
+	if s.PublicURL == "" {
+		return "", false
+	}
+	u, err := url.Parse(s.PublicURL)
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		return "", false
+	}
+	return u.Scheme + "://" + u.Host, u.Scheme == "https"
+}
+
 // StorageConfig selects and configures the blob storage backend.
 type StorageConfig struct {
 	// Type is the backend: "filesystem" or "s3".

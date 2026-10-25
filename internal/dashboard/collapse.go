@@ -12,9 +12,8 @@ import (
 // slashes ("library/nginx") reach handlers as one chi path parameter. Mount
 // the result at the repo path prefix:
 //
-//	inner := chi.NewRouter()
-//	NewTagsHandler(q).Mount(inner)
-//	r.Mount("/dashboard/repos", CollapseRepoName(inner))
+//	repos := chi.NewRouter()
+//	r.Mount("/api/repo", CollapseRepoName(repos))
 //
 // The request URL is untouched; handlers read the real name back with
 // RepoPathParam.

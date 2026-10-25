@@ -38,7 +38,7 @@ func Test_gcPosts_when_noCSRFToken_then_403_when_tokenThenServed(t *testing.T) {
 	seed := gcTestSeedFive(t, q, store)
 
 	// When: both POSTs arrive without the X-CSRF-Token header.
-	for _, path := range []string{"/dashboard/gc/dry-run", "/dashboard/gc/run"} {
+	for _, path := range []string{"/api/gc/dry-run", "/api/gc/run"} {
 		rec := gcTestRequest(t, h, http.MethodPost, path)
 		if rec.Code != http.StatusForbidden {
 			t.Fatalf("POST %s without token: status = %d, want 403", path, rec.Code)
@@ -51,9 +51,8 @@ func Test_gcPosts_when_noCSRFToken_then_403_when_tokenThenServed(t *testing.T) {
 	}
 
 	// And: with the matching token both POSTs are served.
-	for _, path := range []string{"/dashboard/gc/dry-run", "/dashboard/gc/run"} {
+	for _, path := range []string{"/api/gc/dry-run", "/api/gc/run"} {
 		req := httptest.NewRequest(http.MethodPost, path, nil)
-		req.Header.Set("HX-Request", "true")
 		req.Header.Set(middleware.CSRFHeader, gcTestCSRFToken)
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -118,6 +119,12 @@ func (cfg *Config) Validate() error {
 	if cfg.Auth.Session.Secret == "" {
 		return fmt.Errorf("auth.session.secret_env: environment variable %q is empty or unset", cfg.Auth.Session.SecretEnv)
 	}
+	if len(cfg.Auth.Session.Secret) < 32 {
+		return errors.New("auth.session.secret_env: secret must be at least 32 bytes")
+	}
+	if err := cfg.checkDevAnonymous(); err != nil {
+		return err
+	}
 	if cfg.Auth.Session.TTL <= 0 {
 		return errors.New("auth.session.ttl must be greater than zero")
 	}
@@ -137,4 +144,23 @@ func (cfg *Config) Validate() error {
 	}
 
 	return nil
+}
+
+// checkDevAnonymous refuses the open /v2 flag once a public hostname is
+// configured. An empty public_url, or a localhost origin, may still use it
+// for conformance on the operator's own machine.
+func (cfg *Config) checkDevAnonymous() error {
+	if !cfg.Auth.DevAnonymous || cfg.Server.PublicURL == "" {
+		return nil
+	}
+	u, err := url.Parse(cfg.Server.PublicURL)
+	if err != nil {
+		return errors.New("auth.dev_anonymous requires an empty public_url or a localhost public_url")
+	}
+	switch u.Hostname() {
+	case "localhost", "127.0.0.1", "::1":
+		return nil
+	default:
+		return errors.New("auth.dev_anonymous requires an empty public_url or a localhost public_url")
+	}
 }

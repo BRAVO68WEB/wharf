@@ -149,7 +149,7 @@ func testMux(t *testing.T) (http.Handler, db.Querier) {
 		},
 		GC: config.GCConfig{BatchSize: 8},
 	}
-	h, err := newMux(t.Context(), api.NewHealth(sqlDB, store), store, db.New(sqlDB), cfg)
+	h, err := newMux(t.Context(), api.NewHealth(sqlDB, store), store, sqlDB, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

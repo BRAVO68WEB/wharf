@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/user/better-docker-registry/internal/auth"
+	"github.com/user/better-docker-registry/internal/repopath"
 	"github.com/user/better-docker-registry/internal/storage"
 )
 
@@ -66,7 +67,11 @@ func AuthScopes(ctx context.Context) ([]auth.AccessEntry, bool) {
 // challenge; invalid token → the same 401 (indistinguishable from a probe's
 // point of view); valid token without the required scope → 403 + DENIED with
 // a challenge naming the scope to fetch. signer must not be nil.
-func BearerAuth(signer *auth.Signer, service string) func(http.Handler) http.Handler {
+//
+// realm is the external origin, such as https://registry.example.com,
+// written into WWW-Authenticate. Empty uses the request scheme and
+// host, which is correct only when clients connect directly.
+func BearerAuth(signer *auth.Signer, service, realm string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			path := r.URL.Path
@@ -76,16 +81,16 @@ func BearerAuth(signer *auth.Signer, service string) func(http.Handler) http.Han
 			}
 			token, hasToken := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 			if !hasToken {
-				writeUnauthorized(w, bearerChallenge(r, service, ""), authMsgRequired)
+				writeUnauthorized(w, bearerChallenge(r, service, "", realm), authMsgRequired)
 				return
 			}
 			claims, err := signer.Validate(token)
 			if err != nil {
-				writeUnauthorized(w, bearerChallenge(r, service, ""), authMsgInvalid)
+				writeUnauthorized(w, bearerChallenge(r, service, "", realm), authMsgInvalid)
 				return
 			}
 			r = r.WithContext(context.WithValue(r.Context(), authClaimsKey{}, claims))
-			name, scoped := repoNameFromPath(path)
+			name, scoped := repopath.Name(path)
 			if !scoped {
 				if (path == "/v2" || path == "/v2/") && isVersionCheckMethod(r.Method) {
 					w.Header().Set(storage.HeaderAPIVersion, storage.APIVersion)
@@ -104,7 +109,7 @@ func BearerAuth(signer *auth.Signer, service string) func(http.Handler) http.Han
 			action := requiredAction(r.Method)
 			if !claims.HasAccess(name, action) {
 				scope := fmt.Sprintf("repository:%s:%s", name, action)
-				w.Header().Set("WWW-Authenticate", bearerChallenge(r, service, scope))
+				w.Header().Set("WWW-Authenticate", bearerChallenge(r, service, scope, realm))
 				writeAuthError(w, http.StatusForbidden, storage.NewError(storage.ErrorCodeDenied, authMsgDenied))
 				return
 			}
@@ -123,12 +128,15 @@ func writeUnauthorized(w http.ResponseWriter, challenge, message string) {
 // bearerChallenge builds the WWW-Authenticate value of the token auth spec:
 // Bearer realm="<scheme>://<host>/token",service="<svc>",scope="<scope>".
 // scope is empty on 401 and names the required grant on 403.
-func bearerChallenge(r *http.Request, service, scope string) string {
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
+func bearerChallenge(r *http.Request, service, scope, realm string) string {
+	if realm == "" {
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = "https"
+		}
+		realm = scheme + "://" + r.Host
 	}
-	return fmt.Sprintf("Bearer realm=\"%s://%s/token\",service=\"%s\",scope=\"%s\"", scheme, r.Host, service, scope)
+	return fmt.Sprintf("Bearer realm=\"%s/token\",service=\"%s\",scope=\"%s\"", realm, service, scope)
 }
 
 // writeAuthError writes the registry error contract (byte-compatible with the
@@ -143,33 +151,6 @@ func writeAuthError(w http.ResponseWriter, status int, e *storage.Error) {
 	}
 	w.WriteHeader(status)
 	_, _ = w.Write(body)
-}
-
-// repoOpSegments are the path segments that end a repository name in a /v2
-// URL. The name runs up to the LAST of these, so a repository name may itself
-// contain "blobs", "manifests" or "tags" segments (same cut rule as the API
-// router's path collapse).
-var repoOpSegments = []string{"/blobs/", "/manifests/", "/tags/", "/referrers/"}
-
-// repoNameFromPath extracts the repository name from a /v2 URL. It reports
-// false for paths naming no repository: the version check, the catalog and
-// other global routes. Name grammar stays the API layer's business; here the
-// name is only compared against the token's grants.
-func repoNameFromPath(path string) (string, bool) {
-	rest, ok := strings.CutPrefix(path, "/v2/")
-	if !ok {
-		return "", false
-	}
-	cut := -1
-	for _, seg := range repoOpSegments {
-		if i := strings.LastIndex(rest, seg); i > cut {
-			cut = i
-		}
-	}
-	if cut <= 0 {
-		return "", false
-	}
-	return rest[:cut], true
 }
 
 // requiredAction maps a request method to the token action it consumes.

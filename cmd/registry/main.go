@@ -42,6 +42,19 @@ func main() {
 	}
 }
 
+func logLevel(level string) slog.Level {
+	switch level {
+	case config.LogDebug:
+		return slog.LevelDebug
+	case config.LogWarn:
+		return slog.LevelWarn
+	case config.LogError:
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
+
 func run(args []string) error {
 	fs := flag.NewFlagSet("registry", flag.ContinueOnError)
 	configPath := fs.String("config", "", "path to configuration file (required)")
@@ -57,6 +70,7 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
+	slog.SetLogLoggerLevel(logLevel(cfg.Logging.Level))
 
 	listenAddr := *addr
 	if listenAddr == "" {
@@ -83,7 +97,7 @@ func run(args []string) error {
 	}
 
 	health := api.NewHealth(sqlDB, store)
-	handler, err := newMux(ctx, health, store, db.New(sqlDB), cfg)
+	handler, err := newMux(ctx, health, store, sqlDB, cfg)
 	if err != nil {
 		return err
 	}
@@ -112,7 +126,8 @@ func run(args []string) error {
 // middleware.CSRF's context slot, then CSRF enforces it. Login stays outside
 // the group: it is the request that creates a session and cannot carry its
 // CSRF token yet. GET /dashboard/login is a client route served by the SPA.
-func newMux(ctx context.Context, health *api.Health, store storage.Storage, q db.Querier, cfg *config.Config) (http.Handler, error) {
+func newMux(ctx context.Context, health *api.Health, store storage.Storage, sqlDB *sql.DB, cfg *config.Config) (http.Handler, error) {
+	q := db.New(sqlDB)
 	created, err := auth.EnsureRSAPrivateKey(cfg.Auth.JWT.PrivateKeyPath)
 	if err != nil {
 		return nil, err
@@ -124,7 +139,8 @@ func newMux(ctx context.Context, health *api.Health, store storage.Storage, q db
 	if err != nil {
 		return nil, err
 	}
-	sessions, err := auth.NewSessionManager(q, cfg.Auth.Session, false)
+	origin, secure := cfg.Server.ExternalOrigin()
+	sessions, err := auth.NewSessionManager(q, cfg.Auth.Session, secure)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +153,7 @@ func newMux(ctx context.Context, health *api.Health, store storage.Storage, q db
 		api.WithMaxUploadSize(cfg.Server.MaxUploadSize),
 	)
 	if !cfg.Auth.DevAnonymous {
-		v2 = middleware.BearerAuth(signer, cfg.Auth.JWT.Service)(v2)
+		v2 = middleware.BearerAuth(signer, cfg.Auth.JWT.Service, origin)(v2)
 	} else {
 		slog.Warn("auth.dev_anonymous: /v2/* is served WITHOUT bearer auth — dev only")
 	}
@@ -160,7 +176,7 @@ func newMux(ctx context.Context, health *api.Health, store storage.Storage, q db
 	spa := site.Handler()
 	root.Route("/dashboard", func(dash chi.Router) {
 		dash.Post("/api/login", sessions.HandleLoginJSON)
-		apiHandler := dashboard.NewHTTPAPI(q, store, lock, gc.WithBatchSize(cfg.GC.BatchSize))
+		apiHandler := dashboard.NewHTTPAPI(sqlDB, q, store, lock, gc.WithBatchSize(cfg.GC.BatchSize))
 		apiHandler.SetPullHost(pullHost)
 		apiHandler.SetGCInterval(cfg.GC.Interval.Duration())
 		gc.StartSchedule(ctx, cfg.GC.Interval.Duration(), func(ctx context.Context) error {

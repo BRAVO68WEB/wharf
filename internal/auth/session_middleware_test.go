@@ -80,8 +80,8 @@ func Test_MiddlewareRedirects_when_SessionRowDeleted(t *testing.T) {
 	}
 }
 
-func Test_MiddlewareSetsHXRedirect_when_HXRequestWithoutCookie(t *testing.T) {
-	// Given: an HTMX request with no session.
+func Test_MiddlewareRedirects_when_HXRequestHeader_then_stillRedirects(t *testing.T) {
+	// Given: a request that still carries the old HTMX header and no session.
 	m, _ := newSessionTestManager(t, time.Hour, true)
 	h := newSessionTestMux(m)
 	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
@@ -92,13 +92,17 @@ func Test_MiddlewareSetsHXRedirect_when_HXRequestWithoutCookie(t *testing.T) {
 	h.ServeHTTP(rec, req)
 	resp := rec.Result()
 
-	// Then: the response carries HX-Redirect instead of a 302 so HTMX
-	// navigates the whole page to the login form.
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusUnauthorized)
+	// Then: the header is ignored. The client gets the same login redirect
+	// as any other browser request.
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusFound)
 	}
-	if got := resp.Header.Get("HX-Redirect"); got != auth.SessionLoginPath {
-		t.Errorf("HX-Redirect = %q, want %q", got, auth.SessionLoginPath)
+	if got := resp.Header.Get("HX-Redirect"); got != "" {
+		t.Errorf("HX-Redirect = %q, want empty", got)
+	}
+	want := "http://example.com" + auth.SessionLoginPath
+	if loc := resp.Header.Get("Location"); loc != want {
+		t.Errorf("Location = %q, want %q", loc, want)
 	}
 }
 
