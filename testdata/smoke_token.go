@@ -23,7 +23,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
+	"github.com/BRAVO68WEB/wharf/internal/bcrypt"
 
 	"github.com/BRAVO68WEB/wharf/internal/auth"
 	"github.com/BRAVO68WEB/wharf/internal/config"

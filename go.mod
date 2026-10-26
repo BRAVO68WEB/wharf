@@ -10,7 +10,6 @@ require (
 	github.com/aws/smithy-go v1.28.2
 	github.com/go-chi/chi/v5 v5.4.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
-	golang.org/x/crypto v0.56.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.59.0
 )

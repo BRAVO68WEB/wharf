@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"golang.org/x/crypto/bcrypt"
+	"github.com/BRAVO68WEB/wharf/internal/bcrypt"
 
 	"github.com/BRAVO68WEB/wharf/internal/db"
 )

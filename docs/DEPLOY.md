@@ -85,7 +85,8 @@ origin changes is in [Configuration](CONFIG.md).
 
 `dev` is the default branch. Day-to-day work lands there. `main` is
 protected. A direct push is rejected. The only way onto `main` is a
-pull request from `dev`, with the Test and From dev checks green.
+pull request from `dev`, with the Test, From dev, and Conformance
+checks green.
 
 A preview tag is cut from `dev`. A stable tag is cut from `main`,
 after that commit has been merged. Pushes that are not tags do not
@@ -112,7 +113,10 @@ does.
 
 Each archive contains the `wharf` binary, `LICENSE`, and `README.md`.
 Linux and macOS archives are `.tar.gz`. Windows archives are `.zip`.
-The names look like `wharf_1.2.3_linux_amd64.tar.gz`.
+The names look like `wharf_1.2.3_linux_amd64.tar.gz`. The release also
+uploads an SBOM for each archive and a checksum file. GitHub signs a
+provenance attestation for those files. Verify one with
+`gh attestation verify FILE -R BRAVO68WEB/wharf`.
 
 | OS | amd64 | arm64 |
 | --- | --- | --- |
@@ -135,8 +139,11 @@ docker run --rm -p 5000:5000 \
   bravo68web/wharf:1.2.3
 ```
 
-`ghcr.io/bravo68web/wharf:1.2.3` takes the same flags. The image still
-reads `/etc/registry/config.yml` and still requires
+`ghcr.io/bravo68web/wharf:1.2.3` takes the same flags. Both registries
+store the image with max-level provenance and an SBOM, and GitHub
+signs a second provenance statement for each registry. Inspect one
+with `docker buildx imagetools inspect ghcr.io/bravo68web/wharf:1.2.3`.
+The image still reads `/etc/registry/config.yml` and still requires
 `REGISTRY_SESSION_SECRET`.
 
 Create the public Docker Hub repository `bravo68web/wharf` before the

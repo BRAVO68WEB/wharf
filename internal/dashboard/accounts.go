@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/crypto/bcrypt"
+	"github.com/BRAVO68WEB/wharf/internal/bcrypt"
 	"modernc.org/sqlite"
 
 	"github.com/go-chi/chi/v5"

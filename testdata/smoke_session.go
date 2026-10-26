@@ -16,12 +16,12 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
+	"github.com/BRAVO68WEB/wharf/internal/bcrypt"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/BRAVO68WEB/wharf/internal/auth"
 	"github.com/BRAVO68WEB/wharf/internal/config"
 	"github.com/BRAVO68WEB/wharf/internal/db"
+	"github.com/go-chi/chi/v5"
 )
 
 var failures int
