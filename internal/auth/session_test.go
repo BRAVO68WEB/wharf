@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/BRAVO68WEB/wharf/internal/bcrypt"
 	"github.com/go-chi/chi/v5"
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/BRAVO68WEB/wharf/internal/auth"
 	"github.com/BRAVO68WEB/wharf/internal/config"
