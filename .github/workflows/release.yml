@@ -8,6 +8,8 @@ on:
 permissions:
   contents: write
   packages: write
+  id-token: write
+  attestations: write
 
 jobs:
   channel:
@@ -75,6 +77,9 @@ jobs:
           cache: pnpm
           cache-dependency-path: site/pnpm-lock.yaml
 
+      - name: Install Syft
+        run: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin v1.23.1
+
       - name: Publish GitHub Release
         uses: goreleaser/goreleaser-action@v6
         with:
@@ -83,6 +88,15 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Attest release archives
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*.sbom.json
+            dist/checksums.txt
 
   image:
     name: Image
@@ -129,12 +143,15 @@ jobs:
         run: echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
+        id: push
         uses: docker/build-push-action@v6
         with:
           context: .
           file: deploy/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
+          provenance: mode=max
+          sbom: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
@@ -143,3 +160,17 @@ jobs:
             DATE=${{ steps.ver.outputs.date }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Attest the GHCR image
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/bravo68web/wharf
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest the Docker Hub image
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: index.docker.io/bravo68web/wharf
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
